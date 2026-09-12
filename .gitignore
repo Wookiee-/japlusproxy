@@ -1,0 +1,8 @@
+# Reference-only sources — never build or commit
+OpenJK/
+JKA_YBEProxy/
+
+# Local original JA+ lib + build output
+jampgamei386.so
+japlus_real_i386.so
+proxy/japlusproxy.so
