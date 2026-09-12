@@ -218,9 +218,11 @@ intptr_t QDECL Proxy_Syscall(intptr_t cmd,
       char *buf = (char *)a1;
       int size = (int)a2;
       if (buf && size > 0) {
+        size_t cap;
         buf[size - 1] = '\0';
-        if ((int)strlen(buf) >= 1024) {
-          buf[1023] = '\0';
+        cap = (size - 1 < 1023) ? (size_t)(size - 1) : 1023u;
+        if (strlen(buf) > cap) {
+          buf[cap] = '\0';
           g_engine((intptr_t)G_PRINT,
             (intptr_t)"[japlus_proxy] truncated overlong entity token\n",
             0,0,0,0,0,0,0,0,0,0);
@@ -279,14 +281,15 @@ static int IsTokenChars(const char *s) {
   return 1;
 }
 static int IsMapChars(const char *s) {
+  const char *orig = s;
   for (; *s; s++) {
     if ((*s >= 'a' && *s <= 'z') || (*s >= 'A' && *s <= 'Z') ||
         (*s >= '0' && *s <= '9') || *s == '_' || *s == '-' ||
         *s == '/' || *s == '.') continue;
     return 0;
   }
-  if (s[0] == '.' && s[1] == '.' && s[2] == 0) return 0;
-  if (strstr(s, "../") || strstr(s, "..\\")) return 0;
+  if (orig[0] == '.' && orig[1] == '.' && orig[2] == 0) return 0;
+  if (strstr(orig, "../") || strstr(orig, "..\\")) return 0;
   return 1;
 }
 static int IsNumberChars(const char *s) {
@@ -298,13 +301,14 @@ static int IsNumberChars(const char *s) {
   return 1;
 }
 static int IsPathChars(const char *s) {
+  const char *orig = s;
   for (; *s; s++) {
     if ((*s >= 'a' && *s <= 'z') || (*s >= 'A' && *s <= 'Z') ||
         (*s >= '0' && *s <= '9') || *s == '_' || *s == '-' ||
         *s == '/' || *s == '.') continue;
     return 0;
   }
-  if (strstr(s, "../") || strstr(s, "..\\")) return 0;
+  if (strstr(orig, "../") || strstr(orig, "..\\")) return 0;
   return 1;
 }
 static int StrCasePrefix(const char *s, const char *prefix, size_t n) {
@@ -369,8 +373,11 @@ static int VanillaBlock(int clientNum, const char *cmd, const char *args,
     return 1;
   }
   // gc <slot> with out-of-range slot crashes vanilla gamecode
-  if (StrCaseEq(cmd, "gc", 2) && atoi(arg1) >= Engine_CvarInt("sv_maxclients"))
-    return 1;
+  if (StrCaseEq(cmd, "gc", 2)) {
+    int slot = atoi(arg1);
+    if (slot < 0 || slot >= Engine_CvarInt("sv_maxclients"))
+      return 1;
+  }
   // npc spawn ragnos / saber_droid crashes clients/gamecode
   if (StrCaseEq(cmd, "npc", 3)) {
     char a1[128], a2[128];
@@ -437,12 +444,6 @@ static int ShouldBlockClientCommand(int clientNum) {
   if (StrCasePrefix(arg0, "am", 2))
     return JAPlusBlock(arg0, args, argc, arg1);
   return VanillaBlock(clientNum, arg0, args, argc, arg1, arg2);
-}
-    }
-    args[len] = 0;
-    return JAPlusBlock(arg0, args, argc, arg1);
-  }
-  return 0;
 }
 
 static int UserinfoLooksEvil(const char *s) {
@@ -580,7 +581,6 @@ static int SanitizeUserinfo(char *ui, size_t uilen, char *kickReason,
                             size_t klen) {
   char val[512], fixed[512];
   int changed = 0;
-  (void)uilen;
   if (Info_Value(ui, "model", val, sizeof(val))) {
     int bad = 0;
     if (StrCaseEq(val, "darksidetools", 12)) {
@@ -592,7 +592,7 @@ static int SanitizeUserinfo(char *ui, size_t uilen, char *kickReason,
         StrCaseEq(val, "rancor", 6) || StrCaseEq(val, "wampa", 5) ||
         !IsAsciiClean(val) || strlen(val) >= 64)
       bad = 1;
-    if (bad) { Info_Set(ui, 2048, "model", "kyle"); changed = 1; }
+    if (bad) { Info_Set(ui, uilen, "model", "kyle"); changed = 1; }
   }
   if (Info_Value(ui, "forcepowers", val, sizeof(val))) {
     size_t n = strlen(val), i;
@@ -611,13 +611,13 @@ static int SanitizeUserinfo(char *ui, size_t uilen, char *kickReason,
       if (seps != 2) bad = 1;
     }
     if (bad) {
-      Info_Set(ui, 2048, "forcepowers", "7-1-030000000000003332");
+      Info_Set(ui, uilen, "forcepowers", "7-1-030000000000003332");
       changed = 1;
     }
   }
   if (Info_Value(ui, "name", val, sizeof(val))) {
     CleanName(val, fixed, sizeof(fixed));
-    if (strcmp(val, fixed) != 0) { Info_Set(ui, 2048, "name", fixed); changed = 1; }
+    if (strcmp(val, fixed) != 0) { Info_Set(ui, uilen, "name", fixed); changed = 1; }
   }
   // Spawn-adjacent keys: attacker-controlled file/class lookups at spawn.
   // siegeclass -> class lookup by name; saber1/saber2 -> hilt file loads.
@@ -625,19 +625,19 @@ static int SanitizeUserinfo(char *ui, size_t uilen, char *kickReason,
   // confine charset and drop the key (game default applies) when dirty.
   if (Info_Value(ui, "siegeclass", val, sizeof(val))) {
     if ((val[0] && !IsTokenChars(val)) || strlen(val) >= 64 || HasCRLF(val)) {
-      Info_Set(ui, 2048, "siegeclass", "");
+      Info_Set(ui, uilen, "siegeclass", "");
       changed = 1;
     }
   }
   if (Info_Value(ui, "saber1", val, sizeof(val))) {
     if (!IsPathChars(val) || strlen(val) >= 64 || HasCRLF(val)) {
-      Info_Set(ui, 2048, "saber1", "");
+      Info_Set(ui, uilen, "saber1", "");
       changed = 1;
     }
   }
   if (Info_Value(ui, "saber2", val, sizeof(val))) {
     if (!IsPathChars(val) || strlen(val) >= 64 || HasCRLF(val)) {
-      Info_Set(ui, 2048, "saber2", "");
+      Info_Set(ui, uilen, "saber2", "");
       changed = 1;
     }
   }
