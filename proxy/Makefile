@@ -1,7 +1,9 @@
 # japlusproxy — Linux i386 wrapper build.
 # Run on a 32-bit-capable Linux host (NOT Windows):
-#   sudo apt install gcc-multilib libc6-dev-i386
-#   make            # -> japlusproxy.so
+#   sudo apt install gcc-multilib libc6-dev-i386 cmake
+#   make            # -> japlusproxy.so (plain gcc, same -m32 flags)
+#   make cmake-build  # -> build-i686/japlusproxy.so (CMake + vendored
+#                     #    cmake/Toolchains/linux-i686.cmake toolchain)
 # Deploy next to jampded (two options):
 #   A) stock jampded (loads "jampgamei386.so"):
 #        mv jampgamei386.so japlus_real_i386.so   # original JA+ lib
@@ -21,5 +23,10 @@ all: $(OUT)
 $(OUT): $(SRC) patch.h
 	$(CC) $(CFLAGS) -o $@ $(SRC) $(LDFLAGS) $(LDLIBS)
 
+cmake-build:
+	cmake -S . -B build-i686 -DCMAKE_TOOLCHAIN_FILE=cmake/Toolchains/linux-i686.cmake
+	cmake --build build-i686
+
 clean:
 	rm -f $(OUT)
+	rm -rf build-i686
