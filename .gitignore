@@ -2,8 +2,10 @@
 OpenJK/
 JKA_YBEProxy/
 
-# Local original JA+ lib + build output
+# Local original JA+ lib, engine binaries + build output (never commit)
 jampgamei386.so
 japlus_real_i386.so
+linuxjampded
+libcxa.so.1
 proxy/japlusproxy.so
 proxy/build-i686/
