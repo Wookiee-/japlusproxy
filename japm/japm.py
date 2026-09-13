@@ -861,6 +861,10 @@ def _init_plugins(cfg, rcon_client):
         config = settings if isinstance(settings, dict) else {}
         config["_rcon_password"] = cfg["security"]["rcon_password"]
         config["_rcon_port"] = cfg["server"]["port"]
+        if name == "rtv":
+            maps = cfg.get("maps", {})
+            config["_maps"] = list(maps.get("primary", [])) + list(maps.get("secondary", []))
+            config["_gametype"] = cfg.get("game", {}).get("gametype", 0)
         pm.load_from_config({name: config})
 
     return pm
@@ -876,7 +880,11 @@ def cmd_start(name):
     info("[%s] Generating configs..." % name)
     generate_server_cfg(cfg)
     generate_map_files(cfg)
-    generate_rtvrtm_cfg(cfg)
+    # Legacy MBII-coupled standalone config: only for the carried-over
+    # rtvrtm plugin, which is off by default (use native "rtv" instead).
+    legacy = cfg.get("plugins", {}).get("rtvrtm", False)
+    if (isinstance(legacy, dict) and legacy.get("enabled", True)) or legacy is True:
+        generate_rtvrtm_cfg(cfg)
 
     pid = read_pid(name, "engine")
     if pid and pid != 1 and is_pid_alive(pid):

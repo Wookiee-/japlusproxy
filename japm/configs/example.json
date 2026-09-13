@@ -29,8 +29,20 @@
       "whitelist": ["127.0.0.1"],
       "blacklist": []
     },
-    "rtvrtm": {
-      "enabled": false
+    "rtv": {
+      "allow": true,
+      "rate": 60,
+      "min_players": 0,
+      "cooldown_success": 300,
+      "cooldown_fail": 120,
+      "vote_time": 30,
+      "change_immediately": 1,
+      "nominations_per_player": 1,
+      "max_nominations": 5,
+      "recently_played": 1800,
+      "allow_extend": true,
+      "map_gametypes": {
+      }
     }
   },
   "security": {

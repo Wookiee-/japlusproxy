@@ -79,10 +79,13 @@ scripts run standalone (currently only rtvrtm ships one).
 - `automessage` — rotating chat lines via `svsay`. Works as-is.
 - `vpnmonitor` — iphub VPN/proxy check on connect, kick/ban. Works as-is
   once `apikey` is set.
-- `rtvrtm` — **carried over from vmb2m, disabled by default.** It parses
-  the compat `MBII folder:` key (pointed at the japlus dir) but drives
-  map/mode changes through MBII's `mbmode`, which JA+ lacks. Needs a JA+
-  mode-mapping pass (`g_gametype` + `map`) before enabling.
+- `rtv` — rock-the-vote rewritten for basejka: `!rtv` / `!unrtv`,
+  `!nominate <map>`, numbered votes (`!1`-`!5`), nomination limits,
+  recently-played blocking, success/fail cooldowns, optional map extend.
+  Winners switch via `g_gametype` + `map` (per-map overrides in
+  `map_gametypes`). Map pool comes from your instance `maps` lists;
+  gametypes are stock (0 FFA, 1 Holocron, 2 JediMaster, 3 Duel,
+  4 PowerDuel, 6 Team, 7 Siege, 8 CTF).
 
 ## Layout
 
@@ -96,7 +99,7 @@ plugins/event_types.py  # chat/kill/connect/map event types
 plugins/manager.py      # native plugin loader + RCON API
 plugins/automessage.py  # rotating messages (native)
 plugins/vpnmonitor/     # iphub VPN check (native)
-plugins/rtvrtm/         # vote plugin, carried over (standalone, MBII-coupled)
+plugins/rtv.py          # rock-the-vote for basejka (native)
 pids/                   # runtime PID files (gitignored)
 ```
 
