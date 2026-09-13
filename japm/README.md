@@ -18,7 +18,11 @@ nano configs/my_server.json     # ja_path, host_name, rcon_password, maps
 ```
 
 `ja_path` is the GameData dir holding `linuxjampded` + `jampgamei386.so`.
-Leave it empty to auto-detect (`JAPLUS_HOME` env works too).
+Set it once in `japm.conf` (`[locations]`) — it applies to all instances.
+Per-instance `server.ja_path` overrides it when non-empty; empty means
+"use the global". After that: `JAPLUS_HOME` env, then the current
+directory (so running japm from the server folder works with no config),
+then fixed auto-detect paths.
 
 ## Commands
 

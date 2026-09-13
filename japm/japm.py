@@ -120,11 +120,13 @@ CONFIG_DIR = Path(GLOBAL_CFG.get("config_path", "")) if GLOBAL_CFG.get("config_p
 
 
 def merge_config(instance_cfg):
-    """Apply global defaults, then instance overrides, then auto-detect."""
+    """Precedence: instance server.* (when non-empty) -> japm.conf global
+    -> "" (auto-detect later). Empty instance values never clobber globals.
+    """
     cfg = dict(GLOBAL_CFG)
     server = instance_cfg.get("server", {})
     for key in ("ja_path", "engine", "fs_game"):
-        if key in server:
+        if server.get(key):
             cfg[key] = server[key]
         elif key not in cfg:
             cfg[key] = ""
@@ -409,11 +411,15 @@ def build_template_values(cfg):
 
 
 def find_japlus():
-    """Auto-detect JA+ GameData dir (holds linuxjampded + jampgamei386.so)."""
+    """Auto-detect JA+ GameData dir (holds linuxjampded + jampgamei386.so).
+
+    Current directory first: just run japm where the server lives and it
+    works with no configuration.
+    """
     home = Path.home()
-    candidates = []
+    candidates = [Path.cwd()]
     if IS_LINUX:
-        candidates = [
+        candidates += [
             home / "JediAcademy" / "GameData",
             home / "japlus" / "GameData",
             Path("/opt/japlus/GameData"),
@@ -421,13 +427,16 @@ def find_japlus():
             home / ".local" / "share" / "openjk",
         ]
     elif IS_WINDOWS:
-        candidates = [
+        candidates += [
             Path("C:/Program Files (x86)/LucasArts/Star Wars Jedi Knight Jedi Academy/GameData"),
             Path("C:/Program Files/LucasArts/Star Wars Jedi Knight Jedi Academy/GameData"),
         ]
     for p in candidates:
-        if (p / ENGINE_BIN).exists() or (p / GAME_LIB).exists():
-            return p
+        try:
+            if (p / ENGINE_BIN).exists() or (p / GAME_LIB).exists():
+                return p
+        except OSError:
+            continue
     return None
 
 
@@ -569,8 +578,9 @@ def proxy_preflight(cfg):
         return False, "japlusproxy is Linux i386 only"
     gamedata = ja_gamedata(cfg)
     if gamedata is None:
-        return False, ("GameData not set -- put the linuxjampded folder in "
-                       "server.ja_path (%s.json) or export JAPLUS_HOME" % cfg["name"])
+        return False, ("GameData not set - put the linuxjampded folder in "
+                       "japm.conf (ja_path) or server.ja_path (%s.json), "
+                       "or export JAPLUS_HOME, or run from that folder" % cfg["name"])
     src = Path(proxy.get("source", "") or str(REPO_PROXY_SO))
     if not src.exists():
         return False, "japlusproxy.so not found at %s (build it: cd proxy && make)" % src
@@ -907,8 +917,9 @@ def cmd_start(name):
     cfg = load_config(name)
     gamedata = ja_gamedata(cfg)
     if gamedata is None or not gamedata.exists():
-        fail("GameData not found. Set server.ja_path in configs/%s.json "
-             "to the folder holding %s (or export JAPLUS_HOME)." % (name, ENGINE_BIN))
+        fail("GameData not found. Set ja_path in japm.conf (shared) or "
+             "server.ja_path in configs/%s.json, or export JAPLUS_HOME, "
+             "or run from the folder holding %s." % (name, ENGINE_BIN))
         return
     info("[%s] GameData: %s" % (name, gamedata))
     info("[%s] Generating configs..." % name)
@@ -1105,7 +1116,7 @@ def cmd_proxy(name):
     gamedata = ja_gamedata(cfg)
     print("Instance: %s" % name)
     print("  GameData: %s" % (str(gamedata) if gamedata is not None else
-                              "(not set -- server.ja_path or JAPLUS_HOME)"))
+                              "(not set -- japm.conf ja_path, server.ja_path, or JAPLUS_HOME)"))
     print("  Engine:   %s" % (cfg["server"].get("engine") or find_engine(cfg)))
     print("  fs_game:  %s" % (cfg["server"].get("fs_game") or FS_GAME))
     p_ok, p_msg = proxy_preflight(cfg)
