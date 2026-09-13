@@ -375,7 +375,7 @@ static int VanillaBlock(int clientNum, const char *cmd, const char *args,
       0,0,0,0,0,0,0,0,0,0);
     Proxy_Syscall((intptr_t)G_DROP_CLIENT, (intptr_t)clientNum,
       (intptr_t)"(Anti-Cheat system) cheating detected",
-      0,0,0,0,0,0,0,0,0);
+      0,0,0,0,0,0,0,0,0,0);
     return 1;
   }
   // gc <slot> with out-of-range slot crashes vanilla gamecode
@@ -658,7 +658,9 @@ void QDECL dllEntry(syscall_t engine) {
   g_engine = engine;
   LoadReal();
   if (real_dllEntry)
-    real_dllEntry(Proxy_Syscall); // game now calls US for engine services
+    // Cast: our fixed 13-arg trampoline is ABI-compatible with the
+    // variadic syscall_t on x86 cdecl (all args on the stack).
+    real_dllEntry((syscall_t)Proxy_Syscall); // game now calls US for engine services
   else
     fprintf(stderr, "[japlus_proxy] no real dllEntry\n");
 }
@@ -701,7 +703,7 @@ intptr_t QDECL vmMain(int cmd,
           0,0,0,0,0,0,0,0,0,0);
         Proxy_Syscall((intptr_t)G_DROP_CLIENT, (intptr_t)a0,
           (intptr_t)"(Anti-Cheat system) cheating detected",
-          0,0,0,0,0,0,0,0,0);
+          0,0,0,0,0,0,0,0,0,0);
         return 0;
       }
       if (rc > 0) Engine_SetUserinfo((int)a0, ui); // fixed model/force/name
@@ -722,7 +724,7 @@ intptr_t QDECL vmMain(int cmd,
       if (cl < 0 || cl >= 32) {
         Proxy_Syscall((intptr_t)G_PRINT,
           (intptr_t)"[japlus_proxy] blocked begin with bad clientNum\n",
-          0,0,0,0,0,0,0,0,0,0);
+          0,0,0,0,0,0,0,0,0,0,0);
         return 0;
       }
       break;
