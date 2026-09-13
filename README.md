@@ -26,6 +26,10 @@ program (`linuxjampded`) and the JA+ game logic (`jampgamei386.so`) and:
 - **Patches risky internals** — one dangerous lookup inside JA+ is guarded
   directly (bad input returns "not found" instead of crashing). More guards
   can be added the same way.
+- **Slows packet floods** — connectionless packets (`getstatus` / `getinfo`
+  / `connect` / `rcon` spam, the classic reflection-flood vector) are
+  throttled per-IP and globally with a leaky bucket ported from OpenJK.
+  The stock engine has no such limit. Local traffic (127.0.0.1) is exempt.
 
 Legit players notice nothing. Attackers get dropped or logged.
 
@@ -69,6 +73,8 @@ Start the server and look at its startup output. You should see:
 [japlus_proxy] real base=0x… vmMain=0x…
 [japlus_proxy] target BG_SiegeFindClassByName verified
 [japlus_proxy] hooked BG_SiegeFindClassByName@0x… tramp=0x…
+[japlus_proxy] target SV_ConnectionlessPacket  verified
+[japlus_proxy] hooked SV_ConnectionlessPacket@0x… tramp=0x…
 ```
 
 Then smoke-test before going live: connect, chat, use an admin command,
@@ -173,9 +179,15 @@ Now triaged (all 32-bit x86, GCC 2.95.3 era, original stock build):
   `vsprintf`, `sscanf`, `strtok`, `strncat`) — worth auditing around the
   `rcon`, `download`, challenge-auth, and `Cvar_/Com_/SV_` code paths.
 - The wrapper already runs **inside the engine's process** (loaded via
-  `dlopen`), so engine-side patches are technically possible with the same
-  `mprotect` + jump technique — but start with game-side filters, which
-  cover the known remote vectors.
+  `dlopen`), so engine-side patches reuse the same `mprotect` + jump
+  technique. First one armed: `SV_ConnectionlessPacket` (absolute
+  `0x08056D64`, prologue + `getstatus`-string interlock) with OpenJK's
+  leaky bucket — per-IP (default 1/sec, burst 10) plus a global backstop
+  (default 1000/sec), tunable via `sv_maxOOBRateIP` / `sv_maxOOBRate` if
+  those cvars exist (absent on stock → compiled defaults apply, cached
+  every 5 s). Because engine `.text` sits ~3.8 GB from our `.so`, this
+  hook uses absolute jumps (`HookJumpAbs`: `push+ret` / `mov+jmp`), not
+  rel32.
 
 ### Safety rules
 

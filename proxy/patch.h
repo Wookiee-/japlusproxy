@@ -27,8 +27,15 @@ int PatchBytes(void *dst, const void *src, size_t len);
 // The 5-byte jmp is NOP-padded to prefix_len. Returns 0 ok.
 int HookJumpN(void *target, void *detour, size_t prefix_len,
               void **out_tramp);
+// Absolute-jump hook (push+ret / mov+jmp, no rel32 range limit) for engine
+// targets our .so can't reach with rel32. prefix_len must be >= 6 and end
+// on an instruction boundary. Returns 0 ok.
+int HookJumpAbs(void *target, void *detour, size_t prefix_len,
+                void **out_tramp);
 // Base address (dli_fbase) of the module containing `sym_inside`.
 void *ModuleBase(void *sym_inside);
+// Engine cvar read from proxy.c (0 when the engine isn't up / cvar absent).
+int Proxy_CvarInt(const char *name);
 
 #ifdef __cplusplus
 }

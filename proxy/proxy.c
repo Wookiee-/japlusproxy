@@ -157,6 +157,12 @@ static int Engine_CvarInt(const char *name) {
   return (int)g_engine((intptr_t)G_CVAR_VARIABLE_INTEGER_VALUE,
     (intptr_t)name, 0,0,0,0,0,0,0,0,0,0,0);
 }
+// Engine cvar read for patch.c (OOB rate-limit tuning). Safe before the
+// engine is up: returns 0 and callers fall back to compiled defaults.
+int Proxy_CvarInt(const char *name) {
+  if (!g_engine || !name) return 0;
+  return Engine_CvarInt(name);
+}
 
 // ---- usercmd_t mirror (OpenJK codemp/qcommon/q_shared.h: usercmd_s) ----
 // Engine<->game net struct; layout is protocol-frozen, JA+ matches stock.
