@@ -7,5 +7,6 @@ jampgamei386.so
 japlus_real_i386.so
 linuxjampded
 libcxa.so.1
+server.cfg
 proxy/japlusproxy.so
 proxy/build-i686/

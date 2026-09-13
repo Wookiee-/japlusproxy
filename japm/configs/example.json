@@ -47,19 +47,24 @@
   },
   "security": {
     "rcon_password": "changeme",
-    "server_password": ""
+    "server_password": "",
+    "council_password": "changeme",
+    "knight_password": "changeme",
+    "instructor_password": "changeme"
   },
   "game": {
-    "starting_map": "mp/ffa3",
+    "starting_map": "mp/ffa5",
     "gametype": 0,
-    "maxclients": 32,
-    "timelimit": 0,
-    "fraglimit": 20,
+    "maxclients": 14,
+    "timelimit": 40,
+    "fraglimit": 0,
+    "capturelimit": 20,
     "duellimit": 5,
+    "duel_fraglimit": 1,
+    "clan_pass": "",
+    "clan_tag": "",
     "message_of_the_day": "Welcome!\\nHave fun!",
     "cvars": {
-      "g_allowVote": "1",
-      "g_allowNPC": "0"
     }
   },
   "maps": {

@@ -1,41 +1,404 @@
 // Server config generated from [instance_name] by japm
 // DO NOT EDIT — changes will be overwritten
+// Base: Slider's JA+ reference config, tuned for japlusproxy servers.
+// NOTE: game.cvars from your instance JSON are appended last, so any
+// cvar set there OVERRIDES the defaults below.
 
-seta sv_hostname "[host_name]"
-seta g_motd "[message_of_the_day]"
+////////////////////////////////////////////////////////////
+///////////////////SERVER GENERAL SETTINGS//////////////////
+////////////////////////////////////////////////////////////
 
+//---------SERVER PASSWORDS-----------
 seta rconpassword "[rcon_password]"
 seta g_password "[server_password]"
+
+//seta sv_privatePassword "pass for private clients"
+//seta sv_privateClients 0
+
+//----------MAIN SETTINGS------------
+seta sv_hostname "[host_name]"
+seta g_motd "[message_of_the_day]"
+seta sv_maxclients "[maxclients]"
+
+// gametypes
+// 0 = FFA
+// 3 = DUEL one on one tournament
+// 4 = POWER DUEL
+// 6 = TEAM DEATHMATCH
+// 7 = SIEGE
+// 8 = CTF
+seta g_gametype "[gametype]"
+
+seta sv_maxRate 25000
+// rule of thumb: connection speed / (num clients x 8) = sv_maxrate
+
+seta sv_master1 "master.jkhub.org"
+seta sv_master2 "masterjk3.ravensoft.com"
+seta sv_master3 ""
+seta sv_master4 ""
+seta sv_master5 ""
+
+seta g_banIPs ""
+seta sv_maxPing "0"
+seta sv_floodProtect "1"
+seta sv_reconnectlimit "10"
+seta bot_minplayers 0
 
 // Log watcher needs an active game log in the fs_game dir
 seta logfile "1"
 seta g_log "[log_name]"
 seta g_logSync "1"
 
-seta sv_fps "20"
-seta sv_maxclients "[maxclients]"
-seta sv_privateClients ""
-seta sv_privatePassword ""
-seta sv_maxRate "25000"
-seta sv_maxPing "0"
-seta sv_timeout "600"
-seta sv_minSnaps "20"
-seta sv_minRate "2000"
-seta sv_floodProtect "1"
+//---------FORCE & Weapons----------------
+seta g_weaponDisable 524279  // just saber
+seta g_forcePowerDisable 0 // For forcePower bit values use forcetoggle
+seta g_maxForceRank 7
+seta g_forceRegenTime "200" // 200 is the basejka default value.
 
-seta g_gametype "[gametype]"
+//----------OTHER SERVER SETTINGS------
+//seta g_gravity "800"
+//seta sv_timeout "300"
+//seta g_warmup "20"
+//seta g_doWarmup "0"
+seta g_teamAutoJoin 0
+seta g_friendlyfire "0"
+seta g_friendlySaber "0"
+
+//seta g_statLog "1"
+//seta g_statLogFile "stats.log"
+
+seta g_inactivity 0
+seta g_timeouttospec 0
+
+seta g_allowvote 1
 seta timelimit "[timelimit]"
 seta fraglimit "[fraglimit]"
-seta duellimit "[duellimit]"
-seta capturelimit "8"
+seta capturelimit "[capturelimit]"
+seta duel_fraglimit "[duel_fraglimit]"
 
-seta g_allowVote "1"
-seta g_allowNPC "0"
-seta g_dismember "100"
-seta g_filterban "1"
-seta g_InactivityKick "0"
-seta g_InactivitySpec "0"
+seta g_autoMapCycle 1
+seta sv_allowdownload 0
 
+seta g_dismember "300" // the players must allow cg_dismember "300"
+
+seta g_saberLocking 1
+seta g_saberLockFactor 2
+
+seta g_slowmoDuelEnd 0
+seta g_allowDuelSuicide 0
+seta g_siegeTeamSwitch 1
+
+seta g_locationBasedDamage 1
+seta g_stepSlideFix 1
+seta g_allowNPC 1
+
+seta g_useWhileThrowing 1
+seta g_armBreakage 0
+seta g_enableBreath 0
+seta g_enableDust 1
+
+//Remove some items
+//seta disable_item_medpak_instant 1
+//seta disable_item_medpak 1
+//seta disable_item_medpac 1
+//seta disable_item_shield_lrg_instant 1
+//seta disable_item_shield_sm_instant 1
+
+////////////////////////////////////////////
+////////////////////////////////////////////
+////////////////JA+ MOD SETTINGS////////////
+////////////////////////////////////////////
+
+	//---------Client Side Plugin----------------------
+seta sv_pure "0" // not ja+ related but used by the plugin system
+
+///////////////////////////////
+///////////ADMIN SETTINGS//////
+///////////////////////////////
+seta jp_councilPass "[council_pass]"
+seta jp_knightPass "[knight_pass]"
+seta jp_instructorPass "[instructor_pass]"
+
+seta jp_instructorAllowedCMD "140016138"
+seta jp_knightAllowedCMD "207387354"
+seta jp_councilAllowedCMD "528351182"
+
+seta jp_councilLoginMSG "%s ^7is logged as an ^3admin council."
+seta jp_knightLoginMSG "%s ^7is logged as an ^5admin knight."
+seta jp_instructorLoginMSG "%s ^7is logged as an ^5admin instructor."
+
+seta jp_admUsableOn 0 //-2 for all except admins, -1 for all, 0 for usable on lower or equal admin rank, 1 for usable on lower admin rank
+seta jp_admScript 1
+seta jp_admLoginEffect 1
+
+   //--------ANTI Admin Abuse----------------------
+seta jp_antiAdmAbuseTimer 0
+seta jp_antiAdmAbuseCmdsNumber 10
+seta jp_antiAdmAbuseNumberB4ban 0
+
+///////////////////////////////
+/////////JA+ MAIN SETTINGS/////
+///////////////////////////////
+seta jp_starTrekTeleport 1
+seta jp_allowGodTalk 1
+seta jp_inactivityProtectTimer 300
+seta bot_honorableduelacceptance 1
+seta jp_noAutoReplier 0
+
+seta jp_autoQUIT "3-06:00" //japm restarts the server, so this stays harmless
+seta jp_maxConnFromIP 2
+seta jp_userInfoAntiSpam 3
+
+//--------URL Download Redirect---------
+seta jp_DlBaseURL "" // Download Redirect URL => Put your own website/ Or FTP site here.
+
+//-------Alternate Dimension-------------
+seta jp_altDim 2
+seta jp_altDimTimer 30
+seta jp_altDimInactivityTimer 8
+seta jp_altDimName "Alternate Dimension (real ffa, no rules)"
+seta jp_primDimName "Primary Dimension"
+
+//--------Clan Tag Protection------
+seta jp_clanPass "[clan_pass]" //the clan pass also used with clan chat
+seta jp_clanTag "[clan_tag]" // clan tag in player names
+
+//----------Welcome MSGs---------
+seta jp_motd "welcome\n to my server\n Install last JA+ Plugin at:\n ^5www.japlus.net\n\nFor easy/fast Maps/Files Download\n^1Not to be disconnected at map change!!"
+seta jp_motdtime 5  // 5 seconds
+seta jp_welcomeMSG "Welcome to the server!"
+
+//------ANTI CHEAT---------------------
+seta jp_macroScan 1
+seta dmflags 128
+seta jp_antiHackModel 1
+
+//----------Team Settings-----------
+seta g_teamForceBalance 3
+seta jp_teamLock 0
+seta jp_allowTeamKill 0
+seta jp_siegeItemTime 3
+
+//----------Vote management---------
+seta jp_onlyVotingClients 1
+seta jp_votesDisable 3056
+seta jp_voteTimer 10
+seta jp_startMapVoteTimer 60
+
+//-------DUel settings------
+seta jp_allowTeamDuel 1
+seta jp_endDuelBroadcastMSG 1
+seta jp_removeDistanceDuelLimit 1
+seta jp_duelStartArmor 100
+seta jp_DuelAlpha 100 //value between 0 and 255 , -1 to descativate non interference code
+seta jp_privateDuelForceRegen 200 //(200 is the basejka default value for force regen time)
+
+//--------ITEMS ALLOWED----------
+seta jp_pushAll 1
+seta jp_giveWP_MELEE 1
+seta jp_allowJetpack 0
+seta jp_allowFlameThrower 1
+seta jp_allowHook 1
+seta jp_hookFloodProtect 750
+seta jp_hookSpeed 800
+seta jp_allowCloakItem 0
+seta jp_cloakFuel 1
+seta jp_allowSaberSwitch 1500
+seta jp_allowRGBsaber 1
+
+//------Bad Words Filter----------------
+seta jp_wordFilter 0
+seta jp_wordFilterBan ""
+seta jp_wordFilterNumberB4punish 0
+
+//-------PLAYER NAMES------------
+seta jp_oldPlayerName 0
+seta jp_allowSamePlayerNames 0
+seta jp_allowBlackName 1
+
+//-------MODEL SCALE-------------
+seta jp_allowModelScale 0
+seta jp_allowDmgSpeedScale 0
+
+//-------MOVES & ATTACKS----------
+seta g_debugMelee 1
+seta jp_slideOnPlayer 0
+seta jp_gripSpeedScale 0.8
+seta jp_reduceSaberBlock 0
+seta jp_autoDuelBOW 1
+seta jp_improveYellowDFA 1
+seta jp_jk2RedDFA 0
+seta jp_allowNewDFA 1
+seta jp_allowSPattacks 1
+seta jp_allowSPForces 2
+seta jp_allowAmKnockmedown 0
+
+seta jp_allowAmDropSaber 0
+
+seta jp_allowflipkick 1
+seta jp_flipkickScaleDMG 1
+seta d_saberKickTweak 0 // 1 (default basejka)=> staff kick damage weaker, 0 => real damage
+
+seta jp_pushPullKnockDown 1
+seta jp_fixRoll 1
+seta jp_emotDisallow 0
+seta jp_fixEmot 1
+seta jp_gripOpenSaber 0
+seta jp_forceCombo 0
+seta jp_saberNoForceDrain 0
+seta jp_noKATA 0
+seta jp_fixAbsorb "2.0"
+
+//----NEW ANIMS-----------
+seta jp_newGLAAnims 1
+seta jp_ledgeGrab 1
+
+//-------HIGHLANDER FFA modification-----------------
+seta jp_highlander 0
+seta jp_highlanderMaxForceRank 5
+seta jp_highlanderStartingLives 1
+seta jp_highlanderFinalDualTimeLimit 2
+
+//-------JEdi Vs Merc Modification-----------------
+seta g_jediVmerc "0"
+
+////////////////////////////////////
+/////////Center Screen MSGs/////////
+/////////////SETTINGS///////////////
+////////////////////////////////////
+
+//--------------------------------------------------------
+//  MSGs displayed at the center of the screen
+//  FOr Broadcast Msg, the %s will be replaced by the name of the player
+//--------------------------------------------------------
+
+seta jp_msgBroadcastSleep "%s\n is falling asleep"
+seta jp_msgTargetSleep "You are sleeping!"
+seta jp_msgAllSleep "You are all sleeping!"
+
+seta jp_msgBroadcastWake "%s\n is waking up"
+seta jp_msgTargetWake "You awaken!\n Stop distrub..."
+seta jp_msgAllWake "You are all waking up!"
+
+seta jp_msgBroadcastSlap "%s\n has been slapped"
+seta jp_msgTargetSlap "You Fly"
+
+seta jp_msgBroadcastSilence "%s\n has been ^5silenced"
+seta jp_msgTargetSilence "You are silenced!\n Stop distrub..."
+seta jp_msgAllSilence "You are all ^5silenced!"
+
+seta jp_msgBroadcastUnsilence "%s\n has been ^5unsilenced"
+seta jp_msgTargetUnsilence "You can speak!"
+seta jp_msgAllUnsilence "You are all ^5unsilenced!"
+
+seta jp_msgBroadcastForceAltDim "%s\n has been sent \nin ^5alternate dimension"
+seta jp_msgTargetForceAltDim "You are sent \nin ^5alternate dimension"
+seta jp_msgAllForceAltDim "You are all sent \nin ^5alternate dimension"
+
+seta jp_msgBroadcastUnForceAltDim "%s\n isn't forced to\nstay in ^5alternate dimension"
+seta jp_msgTargetUnForceAltDim "You aren't forced to\nstay in ^5alternate dimension!"
+seta jp_msgAllUnForceAltDim "You aren't forced to\nstay in ^5alternate dimension!"
+
+seta jp_msgBroadcastProtect "%s\n is being ^5protected"
+seta jp_msgTargetProtect "You get protection!"
+
+seta jp_msgBroadcastUnprotect "%s\n is loosing ^5protection"
+seta jp_msgTargetUnprotect "You lost ^5protection!"
+
+seta jp_msgBroadcastEmpower "%s\n has been ^5empowered"
+seta jp_msgTargetEmpower "You are ^5empowered!"
+
+seta jp_msgBroadcastUnempower "%s\n has lost the ^5power"
+seta jp_msgTargetUnempower "You lost the ^5power!"
+
+seta jp_msgBroadcastTeleport "%s\n has been teleported"
+seta jp_msgTargetTeleport "You have been teleported"
+
+seta jp_msgBroadcastMindtrick "%s\n has been Mindtricked\n he lost his eyes!"
+seta jp_msgTargetMindtrick "You have been Mindtricked\n You lost your eyes!"
+
+seta jp_msgBroadcastUnmindtrick "%s\n has been UnMindtricked"
+seta jp_msgTargetUnmindtrick "You have been UnMindtricked"
+
+seta jp_msgBroadcastGhost "%s\n is a Ghost"
+seta jp_msgTargetGhost "You become a Ghost"
+
+seta jp_msgBroadcastUnghost "%s\n has been Unghosted"
+seta jp_msgTargetUnghost "You have been Unghosted"
+
+seta jp_msgBroadcastMerc "%s\n is a Super Merc"
+seta jp_msgTargetMerc "You become a Super Merc"
+
+seta jp_msgBroadcastUnmerc "%s\n lost Weapons"
+seta jp_msgTargetUnmerc "You lost Weapons"
+
+seta jp_msgBroadcastDenyvote "%s\n cannot callvote any more"
+seta jp_msgTargetDenyvote "You lost the vote right"
+
+seta jp_msgBroadcastUndenyvote "%s\nis allowed to callvote"
+seta jp_msgTargetUndenyvote "You are allowed to vote"
+
+/////////////////////////////////////
+///////SABER DAMAGES CVAR////////////
+///////////CONTROLL//////////////////
+////////////////////////////////////
+
+seta jp_alterDMG 0
+seta jp_allowSaberTouchDMG 0
+seta d_saberSPStyleDamage  1
+
+   //------the following cvars are used only if jp_alterDMG 1------
+seta jp_SaberThrowScaleDMG 1
+
+seta jp_StaffDualSpinAttack  10
+seta jp_DualKataAttack  50
+seta jp_StaffKataAttackMin  30
+seta jp_StaffKataAttackMax  50
+seta jp_StaffBackAttackMin 2
+seta jp_StaffBackAttackMax 30
+seta jp_DualBackAttackMin 2
+seta jp_DualBackAttackMax 25
+seta jp_StaffDualOtherAttackMin 2
+seta jp_StaffDualOtherAttackMax 45
+seta jp_StaffDualNormalAttackMin 2
+seta jp_StaffDualNormalAttackMax 60
+
+seta jp_SingleStrongNormalAttackMin  2
+seta jp_SingleStrongNormalAttackMax  110
+seta jp_SingleStrongDfaAttackMin  2
+seta jp_SingleStrongDfaAttackMax  180
+seta jp_SingleStrongBackAttackMin  2
+seta jp_SingleStrongBackAttackMax  50
+seta jp_SingleStrongOtherAttack  100
+
+seta jp_SingleMediumDfaAttackMin  2
+seta jp_SingleMediumDfaAttackMax  70
+seta jp_SingleMediumBackAttackMin 2
+seta jp_SingleMediumBackAttackMax  35
+seta jp_SingleMediumOtherAttack  60
+
+seta jp_SingleFastLungeAttackMin  2
+seta jp_SingleFastLungeAttackMax  30
+seta jp_SingleFastBackAttackMin  2
+seta jp_SingleFastBackAttackMax  30
+seta jp_SingleFastOtherAttack  35
+
+seta jp_SingleKataAttackMin 30
+seta jp_SingleKataAttackMax 50
+seta jp_StabDownAttackMin 2
+seta jp_StabDownAttackMax 50
+seta jp_RollStabAttackMin 2
+seta jp_RollStabAttackMax 12
+seta jp_NewSpinDfaAttackMin 2
+seta jp_NewSpinDfaAttackMax 60
+seta jp_NewPullAttackMin 2
+seta jp_NewPullAttackMax 50
+
+////////////////////////////////////////////////
+////////////////END OF JA+ CVAR SETTINGS////////
+////////////////////////////////////////////////
+
+// Instance overrides (game.cvars) land here, last seta wins.
 [extra_cvars]
 
 map [starting_map]

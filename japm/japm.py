@@ -385,12 +385,19 @@ def build_template_values(cfg):
         "rcon_password": sec.get("rcon_password", ""),
         "server_password": sec.get("server_password", ""),
         "log_name": "%s-games.log" % cfg["name"],
-        "starting_map": game.get("starting_map", "mp/ffa3"),
+        "starting_map": game.get("starting_map", "mp/ffa5"),
         "gametype": str(game.get("gametype", 0)),
-        "maxclients": str(game.get("maxclients", 32)),
-        "timelimit": str(game.get("timelimit", 0)),
-        "fraglimit": str(game.get("fraglimit", 20)),
+        "maxclients": str(game.get("maxclients", 14)),
+        "timelimit": str(game.get("timelimit", 40)),
+        "fraglimit": str(game.get("fraglimit", 0)),
+        "capturelimit": str(game.get("capturelimit", 20)),
         "duellimit": str(game.get("duellimit", 5)),
+        "duel_fraglimit": str(game.get("duel_fraglimit", 1)),
+        "council_pass": sec.get("council_password", ""),
+        "knight_pass": sec.get("knight_password", ""),
+        "instructor_pass": sec.get("instructor_password", ""),
+        "clan_pass": game.get("clan_pass", ""),
+        "clan_tag": game.get("clan_tag", ""),
     }
     for key, val in game.get("cvars", {}).items():
         out["cvar_%s" % key] = str(val)
