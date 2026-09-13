@@ -91,6 +91,7 @@ your JA+ build and stays off — the rest still protects you.
 | Path | Purpose |
 |---|---|
 | `proxy/` | **Our code. Build this.** `proxy.c` (filters), `patch.c/h` (internal patches), `Makefile`, `CMakeLists.txt`, vendored 32-bit toolchain |
+| `japm/` | JAPlus Manager: starts/stops/supervises servers, deploys + verifies the proxy (`japm <name> start`) |
 | `jampgamei386.so` | Your original JA+ file (never modified, never committed) |
 | `linuxjampded`, `libcxa.so.1` | Your server program + its helper library (never modified, never committed) |
 | `OpenJK/`, `JKA_YBEProxy/` | Reference source used to understand the engine (not built, not committed) |

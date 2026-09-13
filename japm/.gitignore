@@ -1,0 +1,8 @@
+# Runtime state — never commit
+pids/
+__pycache__/
+*.pyc
+
+# Instance configs may hold rcon passwords — only the example is versioned
+configs/*.json
+!configs/example.json

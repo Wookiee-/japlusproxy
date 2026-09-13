@@ -1,0 +1,63 @@
+{
+  "server": {
+    "host_name": "^1My ^2JA+ Server",
+    "port": 29070,
+    "restart_every_hours": 24,
+    "ja_path": "",
+    "engine": "",
+    "fs_game": "japlus"
+  },
+  "proxy": {
+    "enabled": true,
+    "source": "",
+    "no_hooks": false,
+    "verify_timeout": 25
+  },
+  "plugins": {
+    "automessage": {
+      "messages": [
+        "Welcome to the server!",
+        "This server is protected by japlusproxy"
+      ],
+      "interval": 300
+    },
+    "vpnmonitor": {
+      "apikey": "",
+      "block": [1, 2],
+      "action": 0,
+      "announce": true,
+      "whitelist": ["127.0.0.1"],
+      "blacklist": []
+    },
+    "rtvrtm": {
+      "enabled": false
+    }
+  },
+  "security": {
+    "rcon_password": "changeme",
+    "server_password": ""
+  },
+  "game": {
+    "starting_map": "mp/ffa3",
+    "gametype": 0,
+    "maxclients": 32,
+    "timelimit": 0,
+    "fraglimit": 20,
+    "duellimit": 5,
+    "message_of_the_day": "Welcome!\\nHave fun!",
+    "cvars": {
+      "g_allowVote": "1",
+      "g_allowNPC": "0"
+    }
+  },
+  "maps": {
+    "primary": [
+      "mp/ffa1",
+      "mp/ffa2",
+      "mp/ffa3",
+      "mp/ffa4",
+      "mp/ffa5"
+    ],
+    "secondary": []
+  }
+}
