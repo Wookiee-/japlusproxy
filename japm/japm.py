@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-japm — JAPlus Manager. Config, boot, process control and auto-restart for
+japm -- JAPlus Manager. Config, boot, process control and auto-restart for
 JA+ (Jedi Academy) dedicated servers, with first-class japlusproxy support.
 
 Derived from vmb2m (Valzhar's MBII Manager): MBII updater/smod/voting
@@ -367,7 +367,8 @@ def build_env(cfg=None):
         return env
     proxy = cfg.get("proxy", {}) if isinstance(cfg.get("proxy"), dict) else {}
     gamedata = ja_gamedata(cfg)
-    real = proxy.get("real_lib", "") or str(gamedata / REAL_LIB_NAME)
+    real = proxy.get("real_lib", "") or (
+        str(gamedata / REAL_LIB_NAME) if gamedata is not None else "")
     if proxy.get("enabled", True):
         env["JAPLUS_REAL"] = real
     if proxy.get("no_hooks"):
@@ -431,7 +432,11 @@ def find_japlus():
 
 
 def ja_gamedata(cfg):
-    """Resolve the GameData dir: instance setting, global, JAPLUS_HOME, detect."""
+    """Resolve the GameData dir, or None when nothing is configured/found.
+
+    Order: instance server.ja_path -> JAPLUS_HOME env -> auto-detect.
+    Never returns a bare "." -- callers treat None as "not configured".
+    """
     path = cfg["server"].get("ja_path", "")
     if not path:
         path = os.environ.get("JAPLUS_HOME", "")
@@ -440,17 +445,25 @@ def ja_gamedata(cfg):
         if detected:
             path = str(detected)
             cfg["server"]["ja_path"] = path
-    return Path(path) if path else Path()
+    if not path or path == ".":
+        return None
+    return Path(path)
 
 
 def ja_moddir(cfg):
-    """Writable mod dir (fs_game): <GameData>/japlus. Created on demand."""
+    """Writable mod dir (fs_game): <GameData>/japlus. None if unconfigured."""
+    gamedata = ja_gamedata(cfg)
+    if gamedata is None:
+        return None
     fs_game = cfg["server"].get("fs_game", "") or FS_GAME
-    return ja_gamedata(cfg) / fs_game
+    return gamedata / fs_game
 
 
 def generate_server_cfg(cfg):
     out_dir = ja_moddir(cfg)
+    if out_dir is None:
+        print("[ERROR] GameData not set -- cannot write server.cfg")
+        return None
     out_dir.mkdir(parents=True, exist_ok=True)
     tpl = CONFIG_DIR / "server.template"
     if not tpl.exists():
@@ -469,6 +482,9 @@ def generate_server_cfg(cfg):
 
 def generate_map_files(cfg):
     out_dir = ja_moddir(cfg)
+    if out_dir is None:
+        print("[ERROR] GameData not set -- cannot write map files")
+        return None
     out_dir.mkdir(parents=True, exist_ok=True)
     name = cfg["name"]
     maps = cfg.get("maps", {})
@@ -483,15 +499,14 @@ def generate_map_files(cfg):
 
 
 def generate_rtvrtm_cfg(cfg):
-    """Config for the carried-over rtvrtm standalone plugin.
-
-    NOTE: rtvrtm was written for MBII — it parses the literal key
-    "MBII folder" (kept here for compat, pointed at GameData/japlus) and
-    drives map/mode changes via MBII's `mbmode`, which JA+ lacks. Map
-    voting needs a JA+ mode-mapping pass before this plugin is useful;
-    it is disabled in example.json.
+    """Legacy standalone vote-plugin config (MBII-coupled keys kept for
+    compat). Only generated when the legacy "rtvrtm" plugin is enabled;
+    prefer the native "rtv" plugin instead.
     """
     out_dir = ja_moddir(cfg)
+    if out_dir is None:
+        print("[ERROR] GameData not set -- cannot write rtvrtm.cfg")
+        return None
     out_dir.mkdir(parents=True, exist_ok=True)
     rtv_raw = cfg.get("rtvrtm", {})
     rtv = rtv_raw if isinstance(rtv_raw, dict) else {}
@@ -552,12 +567,17 @@ def proxy_preflight(cfg):
         return True, "proxy disabled in config"
     if not IS_LINUX:
         return False, "japlusproxy is Linux i386 only"
+    gamedata = ja_gamedata(cfg)
+    if gamedata is None:
+        return False, ("GameData not set -- put the linuxjampded folder in "
+                       "server.ja_path (%s.json) or export JAPLUS_HOME" % cfg["name"])
     src = Path(proxy.get("source", "") or str(REPO_PROXY_SO))
     if not src.exists():
         return False, "japlusproxy.so not found at %s (build it: cd proxy && make)" % src
     if not _is_elf32(src):
         return False, "%s is not a 32-bit ELF" % src
-    gamedata = ja_gamedata(cfg)
+    if not gamedata.exists():
+        return False, "GameData dir does not exist: %s" % gamedata
     if not (gamedata / GAME_LIB).exists() and not (gamedata / REAL_LIB_NAME).exists():
         return False, "no %s (or %s) in %s" % (GAME_LIB, REAL_LIB_NAME, gamedata)
     return True, "proxy ready (%s)" % src
@@ -573,9 +593,13 @@ def ensure_proxy(cfg):
     """
     proxy = cfg.get("proxy", {}) if isinstance(cfg.get("proxy"), dict) else {}
     if not proxy.get("enabled", True):
-        info("proxy disabled — engine loads the stock game lib")
+        info("proxy disabled -- engine loads the stock game lib")
         return False
     gamedata = ja_gamedata(cfg)
+    if gamedata is None or not gamedata.exists():
+        fail("cannot deploy proxy: GameData not set/found "
+             "(server.ja_path or JAPLUS_HOME)")
+        return False
     stock = gamedata / GAME_LIB
     real = gamedata / REAL_LIB_NAME
     src = Path(proxy.get("source", "") or str(REPO_PROXY_SO))
@@ -594,7 +618,7 @@ def ensure_proxy(cfg):
     else:
         ok("wrapper already deployed as %s" % GAME_LIB)
     if proxy.get("no_hooks"):
-        warn("JAPLUS_NO_HOOKS=1 — inline hooks off, filters stay on")
+        warn("JAPLUS_NO_HOOKS=1 -- inline hooks off, filters stay on")
     return True
 
 
@@ -626,11 +650,11 @@ def verify_proxy(cfg, log_path, timeout=25):
     for line in skipped:
         warn(line.strip())
     if not hooked and not skipped:
-        warn("no [japlus_proxy] lines in log — wrapper may not have loaded; "
+        warn("no [japlus_proxy] lines in log -- wrapper may not have loaded; "
              "check that %s is the proxy build" % GAME_LIB)
         return False
     if skipped and not hooked:
-        warn("all hooks SKIPPED — wrong JA+ build for this proxy?")
+        warn("all hooks SKIPPED -- wrong JA+ build for this proxy?")
         return False
     return True
 
@@ -709,9 +733,11 @@ def find_engine(cfg=None):
             return str(full)
 
     if cfg:
-        full = ja_gamedata(cfg) / ENGINE_BIN
-        if full.exists():
-            return str(full)
+        gamedata = ja_gamedata(cfg)
+        if gamedata is not None:
+            full = gamedata / ENGINE_BIN
+            if full.exists():
+                return str(full)
 
     return ENGINE_BIN
 
@@ -788,7 +814,7 @@ def start_engine(cfg):
     # Fork a dedicated supervisor for screen mode
     spid = os.fork()
     if spid == 0:
-        # Child: engine supervisor — only job is to keep engine running
+        # Child: engine supervisor -- only job is to keep engine running
         signal.signal(signal.SIGHUP, signal.SIG_IGN)
         crashes = 0
         while crashes < 10:
@@ -880,8 +906,9 @@ def _init_plugins(cfg, rcon_client):
 def cmd_start(name):
     cfg = load_config(name)
     gamedata = ja_gamedata(cfg)
-    if not gamedata or not gamedata.exists():
-        fail("GameData not found: %s (set server.ja_path or JAPLUS_HOME)" % gamedata)
+    if gamedata is None or not gamedata.exists():
+        fail("GameData not found. Set server.ja_path in configs/%s.json "
+             "to the folder holding %s (or export JAPLUS_HOME)." % (name, ENGINE_BIN))
         return
     info("[%s] GameData: %s" % (name, gamedata))
     info("[%s] Generating configs..." % name)
@@ -997,7 +1024,7 @@ def cmd_start(name):
                     write_pid(name, sname, p.pid)
                     standalone[sname] = p  # Update tracking so it's not respawned
 
-                # Scheduled restart — spawn restart (stop then start)
+                # Scheduled restart -- spawn restart (stop then start)
                 if engine_alive and restart_hours > 0:
                     elapsed = time.time() - engine_start
                     if elapsed >= restart_hours * 3600:
@@ -1077,8 +1104,8 @@ def cmd_proxy(name):
     cfg = load_config(name)
     gamedata = ja_gamedata(cfg)
     print("Instance: %s" % name)
-    gd = str(gamedata) if gamedata else ""
-    print("  GameData: %s" % (gd if gd and gd != "." else "(not found)"))
+    print("  GameData: %s" % (str(gamedata) if gamedata is not None else
+                              "(not set -- server.ja_path or JAPLUS_HOME)"))
     print("  Engine:   %s" % (cfg["server"].get("engine") or find_engine(cfg)))
     print("  fs_game:  %s" % (cfg["server"].get("fs_game") or FS_GAME))
     p_ok, p_msg = proxy_preflight(cfg)
