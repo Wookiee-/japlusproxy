@@ -110,8 +110,21 @@ def load_config(name):
     if not path.exists():
         print("[ERROR] Config not found: %s" % path)
         sys.exit(1)
-    with open(path) as f:
-        cfg = json.load(f)
+    try:
+        with open(path) as f:
+            cfg = json.load(f)
+    except json.JSONDecodeError as e:
+        print("[ERROR] Bad JSON in %s: %s (line %d, column %d)" % (path, e.msg, e.lineno, e.colno))
+        try:
+            with open(path) as f:
+                lines = f.read().splitlines()
+            if 1 <= e.lineno <= len(lines):
+                print("  --> %s" % lines[e.lineno - 1].strip())
+        except OSError:
+            pass
+        print("Check for trailing commas, unescaped quotes/backslashes, or a literal newline inside a \"...\" string.")
+        print("Validate with: python3 -m json.tool %s" % path)
+        sys.exit(1)
     cfg["name"] = name  # Filename always wins
     return merge_config(cfg)
 
