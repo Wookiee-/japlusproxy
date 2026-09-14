@@ -373,7 +373,9 @@ void InstallPatches(void *real_handle) {
       fprintf(stderr, "[japlus_proxy] siege hook not armed\n");
   }
 
-  {
+  if (getenv("JAPLUS_NO_OOB")) {
+    fprintf(stderr, "[japlus_proxy] OOB hook disabled by env\n");
+  } else {
     void *addr = ResolveEngineConnless();
     fprintf(stderr, "[japlus_proxy] target %-22s %s\n",
       "SV_ConnectionlessPacket", addr ? "verified" : "SKIPPED");
