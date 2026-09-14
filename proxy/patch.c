@@ -112,6 +112,63 @@ int HookJumpAbs(void *target, void *detour, size_t prefix_len,
 }
 
 // ---------------------------------------------------------------------------
+// Planted-hook inventory: orig bytes saved before patching (q_engine-style
+// RemoveHook support), plus read-back verification so startup logs prove
+// each fix is really in — "hooked" is only printed after the planted jump
+// is confirmed to point at our detour.
+// ---------------------------------------------------------------------------
+#define MAX_PLANTED 8
+typedef struct {
+  const char *name;
+  void *target;
+  unsigned char orig[8];
+  size_t len;
+} planted_t;
+static planted_t g_planted[MAX_PLANTED];
+static int g_planted_n = 0;
+
+static void TrackHook(const char *name, void *target, size_t len) {
+  if (g_planted_n >= MAX_PLANTED || !name || !target || !len || len > 8)
+    return;
+  g_planted[g_planted_n].name = name;
+  g_planted[g_planted_n].target = target;
+  memcpy(g_planted[g_planted_n].orig, target, len);
+  g_planted[g_planted_n].len = len;
+  g_planted_n++;
+}
+
+// Port of q_engine RemoveHook: restore every planted hook to orig bytes.
+// Currently unused at runtime (game module lives until process exit);
+// kept for future hot-reload support.
+void RemoveHooks(void) {
+  int i;
+  for (i = 0; i < g_planted_n; i++)
+    PatchBytes(g_planted[i].target, g_planted[i].orig, g_planted[i].len);
+}
+
+// Read back the planted jump and confirm it reaches detour.
+static int HookArmed(const char *name, void *detour) {
+  int i;
+  for (i = 0; i < g_planted_n; i++) {
+    unsigned char *t;
+    if (strcmp(g_planted[i].name, name) != 0) continue;
+    t = (unsigned char *)g_planted[i].target;
+    if (t[0] == 0xE9) { // rel32 jmp (HookJumpN)
+      int32_t r;
+      memcpy(&r, t + 1, 4);
+      return (void *)(t + 5 + r) == detour;
+    }
+    if (t[0] == 0x68 && t[5] == 0xC3) { // push+ret (HookJumpAbs)
+      uint32_t a;
+      memcpy(&a, t + 1, 4);
+      return a == (uint32_t)(uintptr_t)detour;
+    }
+    return 0;
+  }
+  return 0;
+}
+
+// ---------------------------------------------------------------------------
 // JA+ target table — link-time vaddrs verified by disassembly
 // (llvm-objdump, .symtab present in jampgamei386.so). Runtime address =
 // module base (dladdr dli_fbase) + vaddr. `expect` interlocks every hook.
@@ -374,8 +431,10 @@ void InstallPatches(void *real_handle) {
   {
     const japlus_target_t *t = FindTarget("BG_SiegeFindClassByName");
     void *addr = t ? ResolveTarget(base, t) : NULL;
+    if (addr) TrackHook(t->name, addr, t->prefix_len);
     if (addr && HookJumpN(addr, (void*)Detour_SiegeFind,
-                          t->prefix_len, &g_tramp_siegeFind) == 0)
+                          t->prefix_len, &g_tramp_siegeFind) == 0 &&
+        HookArmed(t->name, (void*)Detour_SiegeFind))
       fprintf(stderr, "[japlus_proxy] hooked %s@%p tramp=%p\n",
         t->name, addr, g_tramp_siegeFind);
     else
@@ -388,8 +447,10 @@ void InstallPatches(void *real_handle) {
     void *addr = ResolveEngineConnless();
     fprintf(stderr, "[japlus_proxy] target %-22s %s\n",
       "SV_ConnectionlessPacket", addr ? "verified" : "SKIPPED");
+    if (addr) TrackHook("SV_ConnectionlessPacket", addr, ENGINE_CONNLESS_PREFIX);
     if (addr && HookJumpAbs(addr, (void*)Detour_Connless,
-                            ENGINE_CONNLESS_PREFIX, &g_tramp_connless) == 0)
+                            ENGINE_CONNLESS_PREFIX, &g_tramp_connless) == 0 &&
+        HookArmed("SV_ConnectionlessPacket", (void*)Detour_Connless))
       fprintf(stderr, "[japlus_proxy] hooked SV_ConnectionlessPacket@%p tramp=%p\n",
         addr, g_tramp_connless);
     else if (addr)

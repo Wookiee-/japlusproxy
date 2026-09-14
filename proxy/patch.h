@@ -18,6 +18,9 @@ extern "C" {
 
 // Called once after dlopen, with the real lib handle.
 void InstallPatches(void *real_handle);
+// Restore every planted hook to its saved orig bytes (q_engine RemoveHook
+// port; for future hot-reload — the game module normally lives until exit).
+void RemoveHooks(void);
 
 // Low-level helpers (x86 32-bit, rel32 jmp):
 // Overwrite `len` bytes at `dst` with `src` (mprotect-safe). Returns 0 ok.
