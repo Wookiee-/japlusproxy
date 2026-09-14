@@ -114,16 +114,39 @@ static int TryAdoptReal(const char *path) {
   return 1;
 }
 
+// The real lib always sits next to the wrapper in both deploy layouts,
+// but CWD-relative fallbacks break when the engine's working directory
+// isn't the lib dir (e.g. wrapper in japlus/, CWD in GameData root).
+// Resolve candidates relative to our own file location first.
+static void TryAdoptRealNextToSelf(void) {
+  Dl_info di;
+  const char *self, *slash;
+  char dir[1024], cand[1152];
+  memset(&di, 0, sizeof(di));
+  if (!dladdr((void *)&vmMain, &di) || !di.dli_fname) return;
+  self = di.dli_fname;
+  slash = strrchr(self, '/');
+  if (!slash) return; // bare filename: CWD fallbacks below already cover it
+  if ((size_t)(slash - self) >= sizeof(dir)) return;
+  memcpy(dir, self, (size_t)(slash - self));
+  dir[slash - self] = '\0';
+  snprintf(cand, sizeof(cand), "%s/%s", dir, "japlus_real_i386.so");
+  if (TryAdoptReal(cand)) return;
+  snprintf(cand, sizeof(cand), "%s/%s", dir, "jampgamei386.so");
+  TryAdoptReal(cand);
+}
+
 static void LoadReal(void) {
   const char *env;
   if (g_real) return;
   env = getenv("JAPLUS_REAL");
   if (env && *env) TryAdoptReal(env);
+  if (!g_real) TryAdoptRealNextToSelf();
   if (!g_real) TryAdoptReal(REAL_LIB);
   if (!g_real) TryAdoptReal(REAL_LIB_FALLBACK);
   if (!g_real) {
     fprintf(stderr, "[japlus_proxy] could not load real game lib "
-      "(tried JAPLUS_REAL, %s, %s): %s\n",
+      "(tried JAPLUS_REAL, wrapper dir, %s, %s): %s\n",
       REAL_LIB, REAL_LIB_FALLBACK, dlerror());
     return;
   }
