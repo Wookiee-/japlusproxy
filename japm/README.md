@@ -50,8 +50,10 @@ Foreground mode for debugging: `JAPM_FG=1 japm my_server start`.
 4. Launches `linuxjampded` (`+set dedicated 2`, `net_port`, `fs_homepath`
    → GameData, `fs_game japlus`, `+exec`) under `screen jap_<name>`,
    waits for it, connects RCON, starts native plugins + log watcher.
-5. **Verifies the proxy**: tails the fresh game log for
-   `[japlus_proxy] hooked …` lines, warns on `SKIPPED` (wrong JA+ build).
+5. **Verifies the proxy**: engine stdout+stderr is captured to
+   `<name>-engine.log` (never discarded), and the fresh log is tailed for
+   `[japlus_proxy] hooked …` lines — warns on `SKIPPED` (wrong JA+ build)
+   or silence (wrapper didn't load).
 6. Supervises: crash auto-restart (5 tries), scheduled restart via
    `restart_every_hours`, standalone plugin respawn.
 

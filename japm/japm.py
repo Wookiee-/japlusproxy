@@ -677,8 +677,9 @@ def ensure_proxy(cfg):
 
 
 def verify_proxy(cfg, log_path, timeout=25):
-    """Tail the fresh server log for [japlus_proxy] lines. Returns True if
-    at least one hook armed; reports SKIPPED (wrong-build) lines."""
+    """Tail the fresh engine log for [japlus_proxy] lines (proxy startup
+    logging goes to engine stderr, captured there). Returns True if at
+    least one hook armed; reports SKIPPED (wrong-build) lines."""
     proxy = cfg.get("proxy", {}) if isinstance(cfg.get("proxy"), dict) else {}
     if not proxy.get("enabled", True):
         return True
@@ -808,6 +809,14 @@ def _plugin_alive(name):
         return False
 
 
+def engine_log_path(cfg):
+    """Engine stdout+stderr log (proxy [japlus_proxy] lines land here)."""
+    moddir = ja_moddir(cfg)
+    if moddir is None:
+        return None
+    return moddir / ("%s-engine.log" % cfg["name"])
+
+
 def start_engine(cfg):
     engine = cfg["server"].get("engine", "")
     if not engine:
@@ -820,7 +829,7 @@ def start_engine(cfg):
     screen_name = "jap_%s" % cfg["name"]
     using_screen = False
 
-    cmd = [
+    engine_cmd = [
         engine,
         "+set", "dedicated", "2",
         "+set", "net_port", str(port),
@@ -828,6 +837,11 @@ def start_engine(cfg):
         "+set", "fs_game", fs_game,
         "+exec", server_cfg,
     ]
+
+    # Engine stdout+stderr (incl. proxy hook lines) go here, never DEVNULL.
+    elog = engine_log_path(cfg)
+    if elog is not None:
+        elog.parent.mkdir(parents=True, exist_ok=True)
 
     # Always clean up any stale/dead screen sessions before starting
     if not IS_WINDOWS:
@@ -848,11 +862,19 @@ def start_engine(cfg):
     if IS_WINDOWS:
         kwargs = {"cwd": str(gamedata), "env": env,
                   "creationflags": subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP}
+        cmd = engine_cmd
     else:
+        import shlex as _sh
         import shutil as _su
-        if _su.which("screen"):
+        if _su.which("screen") and elog is not None:
             using_screen = True
-            cmd = ["screen", "-dmS", screen_name] + cmd
+            # sh wrapper for output redirect; exec keeps the process name
+            # (so pkill/pgrep patterns still match linuxjampded).
+            shell = "exec %s >>%s 2>&1" % (
+                " ".join(_sh.quote(a) for a in engine_cmd), _sh.quote(str(elog)))
+            cmd = ["screen", "-dmS", screen_name, "sh", "-c", shell]
+        else:
+            cmd = engine_cmd
         kwargs = {"cwd": str(gamedata), "env": env}
 
     print("  Engine: %s" % " ".join(cmd))
@@ -860,7 +882,12 @@ def start_engine(cfg):
     if using_screen:
         subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env, cwd=str(gamedata))
     else:
-        proc = subprocess.Popen(cmd, stderr=subprocess.DEVNULL, **kwargs)
+        if elog is not None:
+            logf = open(elog, "ab", buffering=0)
+            proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
+                                    stdout=logf, stderr=subprocess.STDOUT, **kwargs)
+        else:
+            proc = subprocess.Popen(cmd, stderr=subprocess.DEVNULL, **kwargs)
         write_pid(cfg["name"], "engine", proc.pid)
         ok("Engine started (PID %d)" % proc.pid)
         return proc
@@ -1019,8 +1046,15 @@ def cmd_start(name):
     watcher = LogWatcher(str(log_path), pm)
     watcher.start()
 
-    # Confirm the wrapper actually loaded and hooks armed
-    verify_proxy(cfg, log_path)
+    # Confirm the wrapper actually loaded and hooks armed. Proxy startup
+    # lines go to engine stderr, captured in the engine log (not games.log).
+    elog = engine_log_path(cfg)
+    if elog is not None:
+        if not elog.exists():
+            elog.touch()
+        else:
+            elog.write_text("")  # fresh lines only
+    verify_proxy(cfg, elog if elog is not None else log_path)
 
     standalone = start_standalone_plugins(cfg)
 
@@ -1123,7 +1157,8 @@ def cmd_start(name):
                         ok("[%s] Engine restarted successfully" % name)
                     elif not engine:
                         fail("[%s] Engine failed to start" % name)
-                    verify_proxy(cfg, log_path)
+                    elog2 = engine_log_path(cfg)
+                    verify_proxy(cfg, elog2 if elog2 is not None else log_path)
                     new_standalone = start_standalone_plugins(cfg)
                     standalone.update(new_standalone)
             except Exception as e:
