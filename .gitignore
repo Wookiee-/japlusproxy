@@ -1,6 +1,7 @@
 # Reference-only sources — never build or commit
 OpenJK/
 JKA_YBEProxy/
+jasdk_modbase/
 
 # Local original JA+ lib, engine binaries + build output (never commit)
 jampgamei386.so
