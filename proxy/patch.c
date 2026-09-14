@@ -132,22 +132,27 @@ typedef struct {
   const char *name;
   uintptr_t vaddr;          // JA+ link-time address
   unsigned char expect[6];  // required first bytes (interlock)
+  size_t expect_len;        // bytes of expect[] compared (<= 6)
   size_t prefix_len;        // instruction-boundary-aligned hook length
 } japlus_target_t;
+// NOTE: expect[] must never cover relocation bytes (loader-patched
+// absolute addresses differ file-vs-runtime). BG_SiegeFindClassByName has
+// R_386_32 at +5 (bgNumSiegeClasses), so only its first 5 bytes interlock;
+// every other entry was checked relocation-free in its 6-byte window.
 
 static const japlus_target_t g_targets[] = {
   // Armed hook (see InstallPatches):
-  { "BG_SiegeFindClassByName", 0x10DB34, {0x57,0x56,0x53,0x8B,0x15,0x00}, 9 },
+  { "BG_SiegeFindClassByName", 0x10DB34, {0x57,0x56,0x53,0x8B,0x15,0x00}, 5, 9 },
   // Verified, reserved for future hooks (verify-only for now):
-  { "ClientSpawn",             0x122DD4, {0x57,0x56,0x55,0x53,0x81,0xEC}, 0 },
-  { "ClientCommand",           0x1B2E06, {0x57,0x56,0x55,0x53,0x81,0xEC}, 0 },
-  { "ClientUserinfoChanged",   0x11F8FE, {0x57,0x56,0x55,0x53,0x81,0xEC}, 0 },
-  { "SetTeam",                 0x19F338, {0x57,0x56,0x55,0x53,0x81,0xEC}, 0 },
-  { "Cmd_SiegeClass_f",        0x1A041A, {0x57,0x56,0x55,0x53,0x83,0xEC}, 0 },
-  { "G_ParseSpawnVars",        0x14E4A2, {0x55,0x81,0xEC,0x00,0x08,0x00}, 0 },
-  { "Cmd_amvstr_f",            0x1AA4BC, {0x81,0xEC,0x00,0x08,0x00,0x00}, 0 },
-  { "Cmd_amlogin_f",           0x1A470A, {0x55,0x81,0xEC,0x00,0x08,0x00}, 0 },
-  { "Cmd_ammap_f",             0x1A5A56, {0x57,0x56,0x53,0x81,0xEC,0x00}, 0 },
+  { "ClientSpawn",             0x122DD4, {0x57,0x56,0x55,0x53,0x81,0xEC}, 6, 0 },
+  { "ClientCommand",           0x1B2E06, {0x57,0x56,0x55,0x53,0x81,0xEC}, 6, 0 },
+  { "ClientUserinfoChanged",   0x11F8FE, {0x57,0x56,0x55,0x53,0x81,0xEC}, 6, 0 },
+  { "SetTeam",                 0x19F338, {0x57,0x56,0x55,0x53,0x81,0xEC}, 6, 0 },
+  { "Cmd_SiegeClass_f",        0x1A041A, {0x57,0x56,0x55,0x53,0x83,0xEC}, 6, 0 },
+  { "G_ParseSpawnVars",        0x14E4A2, {0x55,0x81,0xEC,0x00,0x08,0x00}, 6, 0 },
+  { "Cmd_amvstr_f",            0x1AA4BC, {0x81,0xEC,0x00,0x08,0x00,0x00}, 6, 0 },
+  { "Cmd_amlogin_f",           0x1A470A, {0x55,0x81,0xEC,0x00,0x08,0x00}, 6, 0 },
+  { "Cmd_ammap_f",             0x1A5A56, {0x57,0x56,0x53,0x81,0xEC,0x00}, 6, 0 },
 };
 
 static const japlus_target_t *FindTarget(const char *name) {
@@ -159,7 +164,8 @@ static const japlus_target_t *FindTarget(const char *name) {
 
 static void *ResolveTarget(void *base, const japlus_target_t *t) {
   unsigned char *addr = (unsigned char *)base + t->vaddr;
-  if (memcmp(addr, t->expect, sizeof(t->expect)) != 0) {
+  size_t n = t->expect_len <= sizeof(t->expect) ? t->expect_len : sizeof(t->expect);
+  if (n == 0 || memcmp(addr, t->expect, n) != 0) {
     fprintf(stderr, "[japlus_proxy] target %s@%p byte mismatch — "
       "wrong JA+ build, hook skipped\n", t->name, (void*)addr);
     return NULL;
