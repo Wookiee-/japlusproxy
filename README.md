@@ -34,6 +34,9 @@ program (`linuxjampded`) and the JA+ game logic (`jampgamei386.so`) and:
   handler is neutered while `sv_allowdownload` is 0 (the default), so
   clients can't force gamestates/respawns through the download handshake.
   Enable downloads and the handshake passes through untouched.
+- **Throttles `rcon` brute force** — password guesses are limited per IP
+  (short burst, then 1 per 2 s) before the password is even tested. Local
+  admin tools (127.0.0.1) are exempt.
 
 Legit players notice nothing. Attackers get dropped or logged.
 
@@ -79,6 +82,7 @@ Start the server and look at its startup output. You should see:
 [japlus_proxy] hooked BG_SiegeFindClassByName@0x… tramp=0x…
 [japlus_proxy] target SV_ConnectionlessPacket  verified
 [japlus_proxy] hooked SV_ConnectionlessPacket@0x… tramp=0x…
+[japlus_proxy] protections: filters=on hooks_armed=4/4
 ```
 
 Then smoke-test before going live: connect, chat, use an admin command,

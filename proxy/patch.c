@@ -357,12 +357,12 @@ static void OOB_RefreshCfg(int now) {
   oob_cfg_all = (v > 0) ? (v > 1000 ? 1000 : v) : 1000;
 }
 
-static oob_bucket_t *OOB_Bucket(uint32_t ipi) {
+static oob_bucket_t *BucketFor(oob_bucket_t *t, int n, uint32_t ipi) {
   int i, victim = -1;
-  for (i = 0; i < OOB_BUCKETS; i++) {
-    if (oob_table[i].used) {
-      if (oob_table[i].ipi == ipi) return &oob_table[i];
-      if (victim < 0 || oob_table[i].lastTime < oob_table[victim].lastTime)
+  for (i = 0; i < n; i++) {
+    if (t[i].used) {
+      if (t[i].ipi == ipi) return &t[i];
+      if (victim < 0 || t[i].lastTime < t[victim].lastTime)
         victim = i;
     } else {
       victim = i; // free slot beats evicting the oldest entry
@@ -370,10 +370,14 @@ static oob_bucket_t *OOB_Bucket(uint32_t ipi) {
     }
   }
   if (victim < 0) victim = 0;
-  memset(&oob_table[victim], 0, sizeof(oob_bucket_t));
-  oob_table[victim].ipi = ipi;
-  oob_table[victim].used = 1;
-  return &oob_table[victim];
+  memset(&t[victim], 0, sizeof(oob_bucket_t));
+  t[victim].ipi = ipi;
+  t[victim].used = 1;
+  return &t[victim];
+}
+
+static oob_bucket_t *OOB_Bucket(uint32_t ipi) {
+  return BucketFor(oob_table, OOB_BUCKETS, ipi);
 }
 
 // Minimal netadr mirror: only type(+0) and ip(+4) are read, so trailing
@@ -495,6 +499,85 @@ static void *ResolveEngineDonedl(void) {
                           ENGINE_DONEDL_STR, ENGINE_DONEDL_SCAN);
 }
 
+// ---------------------------------------------------------------------------
+// SVC_RemoteCommand (engine "rcon" handler) — brute-force throttle.
+// Stock has no per-IP rcon limit; password guessing is otherwise free.
+// Detour allows a short burst (legit admin typing) then 1 attempt per 2 s
+// per IP; excess attempts are dropped before the password is even tested.
+// Same by-value (netadr_t, msg_t*) family as SV_ConnectionlessPacket.
+// Target 0x08056B14: prologue 55 8B EC 81 EC 20 C5 00 00 (prefix 9),
+// anchor = "Bad rconpassword." DWORD 0x0819D5B0.
+// ---------------------------------------------------------------------------
+
+#define ENGINE_RCON_OFF 0xEB14u
+#define ENGINE_RCON_PREFIX 9u
+#define ENGINE_RCON_STR 0x0819D5B0u
+#define ENGINE_RCON_SCAN 0x400u
+#define RCON_BUCKETS 64
+#define RCON_BURST 5
+#define RCON_PERIOD 2000
+
+static oob_bucket_t rcon_table[RCON_BUCKETS];
+static int rcon_dropped, rcon_lastMsg;
+static void *g_tramp_rcon;
+static void Detour_Rcon(oob_from_t from, const void *msg) {
+  void (*orig)(oob_from_t, const void *) =
+    (void (*)(oob_from_t, const void *))g_tramp_rcon;
+  uint32_t ipi;
+  oob_bucket_t *b;
+  int now;
+  memcpy(&ipi, &from.w[1], 4);
+  if (ipi != 0x0100007Fu) { // loopback exempt (local admin tools)
+    now = OOB_NowMs();
+    b = BucketFor(rcon_table, RCON_BUCKETS, ipi);
+    if (OOB_RateLimit(&b->burst, &b->lastTime, RCON_BURST, RCON_PERIOD, now)) {
+      rcon_dropped++;
+      if (rcon_lastMsg + 5000 < now) {
+        fprintf(stderr, "[japlus_proxy] rcon throttled %d attempts\n",
+          rcon_dropped);
+        rcon_lastMsg = now;
+        rcon_dropped = 0;
+      }
+      return;
+    }
+  }
+  orig(from, msg);
+}
+
+static void *ResolveEngineRcon(void) {
+  static const unsigned char expect[6] =
+    {0x55, 0x8B, 0xEC, 0x81, 0xEC, 0x20};
+  return ResolveEngineAbs("SVC_RemoteCommand", ENGINE_RCON_OFF,
+                          expect, sizeof(expect),
+                          ENGINE_RCON_STR, ENGINE_RCON_SCAN);
+}
+
+static int g_hook_try, g_hook_ok;
+
+// Full plant sequence for one target: verify line, length check, track,
+// plant, read-back. Standard log lines; ends with the protections summary.
+static void PlantHook(const char *name, void *addr, size_t prefix_len,
+                      void *detour, void **tramp) {
+  fprintf(stderr, "[japlus_proxy] target %-22s %s\n",
+    name, addr ? "verified" : "SKIPPED");
+  if (!addr) return;
+  g_hook_try++;
+  if (!HookLenOk(addr, prefix_len)) {
+    fprintf(stderr, "[japlus_proxy] target %s@%p length mismatch — hook skipped\n",
+      name, addr);
+    return;
+  }
+  TrackHook(name, addr, prefix_len);
+  if (HookAuto(addr, detour, prefix_len, tramp) == 0 &&
+      HookArmed(name, detour)) {
+    g_hook_ok++;
+    fprintf(stderr, "[japlus_proxy] hooked %s@%p tramp=%p\n",
+      name, addr, *tramp);
+  } else {
+    fprintf(stderr, "[japlus_proxy] %s hook not armed\n", name);
+  }
+}
+
 void InstallPatches(void *real_handle) {
   void *vm = dlsym(real_handle, "vmMain");
   void *base = ModuleBase(vm ? vm : real_handle);
@@ -517,58 +600,27 @@ void InstallPatches(void *real_handle) {
   {
     const japlus_target_t *t = FindTarget("BG_SiegeFindClassByName");
     void *addr = t ? ResolveTarget(base, t) : NULL;
-    if (addr && !HookLenOk(addr, t->prefix_len)) {
-      fprintf(stderr, "[japlus_proxy] target %s@%p length mismatch — hook skipped\n",
-        t->name, addr);
-      addr = NULL;
-    }
-    if (addr) TrackHook(t->name, addr, t->prefix_len);
-    if (addr && HookAuto(addr, (void*)Detour_SiegeFind,
-                         t->prefix_len, &g_tramp_siegeFind) == 0 &&
-        HookArmed(t->name, (void*)Detour_SiegeFind))
-      fprintf(stderr, "[japlus_proxy] hooked %s@%p tramp=%p\n",
-        t->name, addr, g_tramp_siegeFind);
-    else
-      fprintf(stderr, "[japlus_proxy] siege hook not armed\n");
+    PlantHook(t ? t->name : "BG_SiegeFindClassByName", addr,
+              t ? t->prefix_len : 0,
+              (void*)Detour_SiegeFind, &g_tramp_siegeFind);
   }
 
   if (getenv("JAPLUS_NO_OOB")) {
     fprintf(stderr, "[japlus_proxy] OOB hook disabled by env\n");
   } else {
-    void *addr = ResolveEngineConnless();
-    fprintf(stderr, "[japlus_proxy] target %-22s %s\n",
-      "SV_ConnectionlessPacket", addr ? "verified" : "SKIPPED");
-    if (addr && !HookLenOk(addr, ENGINE_CONNLESS_PREFIX)) {
-      fprintf(stderr, "[japlus_proxy] target SV_ConnectionlessPacket@%p length mismatch — hook skipped\n",
-        addr);
-      addr = NULL;
-    }
-    if (addr) TrackHook("SV_ConnectionlessPacket", addr, ENGINE_CONNLESS_PREFIX);
-    if (addr && HookAuto(addr, (void*)Detour_Connless,
-                         ENGINE_CONNLESS_PREFIX, &g_tramp_connless) == 0 &&
-        HookArmed("SV_ConnectionlessPacket", (void*)Detour_Connless))
-      fprintf(stderr, "[japlus_proxy] hooked SV_ConnectionlessPacket@%p tramp=%p\n",
-        addr, g_tramp_connless);
-    else if (addr)
-      fprintf(stderr, "[japlus_proxy] OOB hook not armed\n");
+    PlantHook("SV_ConnectionlessPacket", ResolveEngineConnless(),
+              ENGINE_CONNLESS_PREFIX,
+              (void*)Detour_Connless, &g_tramp_connless);
   }
 
-  {
-    void *addr = ResolveEngineDonedl();
-    fprintf(stderr, "[japlus_proxy] target %-22s %s\n",
-      "SV_DoneDownload_f", addr ? "verified" : "SKIPPED");
-    if (addr && !HookLenOk(addr, ENGINE_DONEDL_PREFIX)) {
-      fprintf(stderr, "[japlus_proxy] target SV_DoneDownload_f@%p length mismatch — hook skipped\n",
-        addr);
-      addr = NULL;
-    }
-    if (addr) TrackHook("SV_DoneDownload_f", addr, ENGINE_DONEDL_PREFIX);
-    if (addr && HookAuto(addr, (void*)Detour_DoneDownload,
-                         ENGINE_DONEDL_PREFIX, &g_tramp_donedl) == 0 &&
-        HookArmed("SV_DoneDownload_f", (void*)Detour_DoneDownload))
-      fprintf(stderr, "[japlus_proxy] hooked SV_DoneDownload_f@%p tramp=%p\n",
-        addr, g_tramp_donedl);
-    else if (addr)
-      fprintf(stderr, "[japlus_proxy] donedl hook not armed\n");
-  }
+  PlantHook("SV_DoneDownload_f", ResolveEngineDonedl(),
+            ENGINE_DONEDL_PREFIX,
+            (void*)Detour_DoneDownload, &g_tramp_donedl);
+
+  PlantHook("SVC_RemoteCommand", ResolveEngineRcon(),
+            ENGINE_RCON_PREFIX,
+            (void*)Detour_Rcon, &g_tramp_rcon);
+
+  fprintf(stderr, "[japlus_proxy] protections: filters=on hooks_armed=%d/%d\n",
+    g_hook_ok, g_hook_try);
 }
