@@ -61,6 +61,29 @@ from plugins import event_types as events
 
 BASE = Path(__file__).resolve().parent
 PID_DIR = BASE / "pids"
+
+
+def load_dotenv():
+    """Load BASE/.env (KEY=VALUE lines) into the environment. Existing
+    variables win. Missing file is fine. See .env.example.
+    """
+    path = BASE / ".env"
+    try:
+        with open(path) as f:
+            lines = f.read().splitlines()
+    except OSError:
+        return
+    for raw in lines:
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, val = line.split("=", 1)
+        key, val = key.strip(), val.strip().strip("\"'")
+        if key and key not in os.environ:
+            os.environ[key] = val
+
+
+load_dotenv()
 # japlusproxy lives next to japm in the repo (../proxy). An installed copy
 # can be pointed at via the instance "proxy.source" setting instead.
 REPO_PROXY_SO = BASE.parent / "proxy" / "japlusproxy.so"
@@ -341,6 +364,8 @@ def build_env(cfg=None):
         env["JAPLUS_REAL"] = real
     if proxy.get("no_hooks"):
         env["JAPLUS_NO_HOOKS"] = "1"
+    if proxy.get("no_oob"):
+        env["JAPLUS_NO_OOB"] = "1"
     return env
 
 

@@ -11,6 +11,7 @@
     "enabled": true,
     "source": "",
     "no_hooks": false,
+    "no_oob": false,
     "verify_timeout": 25
   },
   "plugins": {

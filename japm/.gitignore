@@ -2,6 +2,7 @@
 pids/
 __pycache__/
 *.pyc
+.env
 
 # Instance configs may hold rcon passwords — only the example is versioned
 configs/*.json
