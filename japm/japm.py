@@ -368,9 +368,11 @@ def build_env(cfg=None):
     if not cfg:
         return env
     proxy = cfg.get("proxy", {}) if isinstance(cfg.get("proxy"), dict) else {}
-    gamedata = ja_gamedata(cfg)
+    libdir = game_lib_dir(cfg)
+    if libdir is None:
+        libdir = ja_gamedata(cfg)  # deploy target unknown yet; preflight decides
     real = proxy.get("real_lib", "") or (
-        str(gamedata / REAL_LIB_NAME) if gamedata is not None else "")
+        str(libdir / REAL_LIB_NAME) if libdir is not None else "")
     if proxy.get("enabled", True):
         env["JAPLUS_REAL"] = real
     if proxy.get("no_hooks"):
@@ -466,6 +468,33 @@ def ja_moddir(cfg):
         return None
     fs_game = cfg["server"].get("fs_game", "") or FS_GAME
     return gamedata / fs_game
+
+
+def game_lib_dirs(cfg):
+    """Candidate dirs for the game lib, fs_game first then GameData root."""
+    gamedata = ja_gamedata(cfg)
+    if gamedata is None:
+        return []
+    moddir = ja_moddir(cfg)
+    dirs = []
+    if moddir is not None:
+        dirs.append(moddir)
+    dirs.append(gamedata)
+    return dirs
+
+
+def game_lib_dir(cfg):
+    """Dir actually holding the game lib (wrapper or original). The wrapper
+    must be deployed here -- wherever the engine loads it from. None if
+    no lib found in any candidate dir.
+    """
+    for d in game_lib_dirs(cfg):
+        try:
+            if (d / GAME_LIB).exists() or (d / REAL_LIB_NAME).exists():
+                return d
+        except OSError:
+            continue
+    return None
 
 
 def generate_server_cfg(cfg):
@@ -588,13 +617,28 @@ def proxy_preflight(cfg):
         return False, "%s is not a 32-bit ELF" % src
     if not gamedata.exists():
         return False, "GameData dir does not exist: %s" % gamedata
-    if not (gamedata / GAME_LIB).exists() and not (gamedata / REAL_LIB_NAME).exists():
-        return False, "no %s (or %s) in %s" % (GAME_LIB, REAL_LIB_NAME, gamedata)
-    return True, "proxy ready (%s)" % src
+    libdir = game_lib_dir(cfg)
+    if libdir is None:
+        searched = ", ".join(str(d) for d in game_lib_dirs(cfg))
+        return False, "no %s (or %s) in %s" % (GAME_LIB, REAL_LIB_NAME, searched)
+    msg = "proxy ready (%s -> %s)" % (src, libdir)
+    # A second copy elsewhere can shadow the wrapper (engine search order).
+    for other in game_lib_dirs(cfg):
+        if other != libdir:
+            try:
+                a = (other / GAME_LIB).read_bytes() if (other / GAME_LIB).exists() else None
+                b = (libdir / GAME_LIB).read_bytes() if (libdir / GAME_LIB).exists() else None
+            except OSError:
+                continue
+            if a is not None and b is not None and a != b:
+                msg += ("; WARNING: different %s also in %s "
+                        "-- engine may load that one instead" % (GAME_LIB, other))
+    return True, msg
 
 
 def ensure_proxy(cfg):
-    """Deploy the wrapper layout in GameData (layout A from the README):
+    """Deploy the wrapper layout alongside the game lib, wherever the
+    engine loads it from (fs_game dir first, else GameData root):
 
     jampgamei386.so  -> japlus_real_i386.so   (original JA+ lib, once)
     japlusproxy.so   -> jampgamei386.so       (wrapper takes the name)
@@ -605,13 +649,13 @@ def ensure_proxy(cfg):
     if not proxy.get("enabled", True):
         info("proxy disabled -- engine loads the stock game lib")
         return False
-    gamedata = ja_gamedata(cfg)
-    if gamedata is None or not gamedata.exists():
-        fail("cannot deploy proxy: GameData not set/found "
+    libdir = game_lib_dir(cfg)
+    if libdir is None:
+        fail("cannot deploy proxy: no game lib found "
              "(server.ja_path or JAPLUS_HOME)")
         return False
-    stock = gamedata / GAME_LIB
-    real = gamedata / REAL_LIB_NAME
+    stock = libdir / GAME_LIB
+    real = libdir / REAL_LIB_NAME
     src = Path(proxy.get("source", "") or str(REPO_PROXY_SO))
     current = stock.read_bytes() if stock.exists() else b""
     wrapper = src.read_bytes()
@@ -1121,11 +1165,12 @@ def cmd_proxy(name):
     print("  fs_game:  %s" % (cfg["server"].get("fs_game") or FS_GAME))
     p_ok, p_msg = proxy_preflight(cfg)
     print("  Proxy:    %s %s" % ("OK" if p_ok else "BROKEN", p_msg))
-    if gamedata and gamedata.exists():
-        stock = gamedata / GAME_LIB
-        real = gamedata / REAL_LIB_NAME
+    libdir = game_lib_dir(cfg)
+    if libdir is not None:
+        real = libdir / REAL_LIB_NAME
+        print("  Game lib dir: %s" % libdir)
         print("  Wrapper deployed: %s" % ("yes" if real.exists() else "no (will deploy on start)"))
-        print("  JAPLUS_REAL -> %s" % (cfg.get("proxy", {}) or {}).get("real_lib", str(gamedata / REAL_LIB_NAME)))
+        print("  JAPLUS_REAL -> %s" % (cfg.get("proxy", {}) or {}).get("real_lib", str(real)))
 
 
 def cmd_restart(name):
