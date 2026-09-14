@@ -200,6 +200,12 @@ static void *Detour_SiegeFind(const char *classname) {
 // verified with capstone against the local binary:
 //   prologue 55 8B EC 83 EC 20 (push ebp; mov ebp,esp; sub esp,0x20),
 //   prefix 6 ends exactly on a boundary (next insn: 89 7D FC).
+// SIGNATURE (verified against the sole caller SV_PacketEvent@0x0805718A,
+// which pushes a 20-byte struct copy + msg = 6 dwords): the address comes
+// BY VALUE — void (*)(netadr_t_20B from, msg_t *msg). Treating arg0 as a
+// pointer faults (arg0 is type=NA_IP=4, so from+4 touches 0x8). The detour
+// below mirrors the by-value layout; gdb frames past the caller then show
+// struct words, not return addresses — that is normal here.
 // Interlock: prologue bytes must match AND the getstatus-string DWORD must
 // appear within the first 0x400 bytes (proves this is the dispatch fn).
 // Rel32 can't reach from engine .text to our .so, so this hook uses
@@ -300,12 +306,15 @@ static int OOB_ShouldDrop(const void *from) {
   return 0;
 }
 
+// Stock 20-byte netadr_t as passed by value (only type+ip are read).
+typedef struct { uint32_t w[5]; } oob_from_t;
+
 static void *g_tramp_connless;
-static void Detour_Connless(const void *from, const void *msg) {
-  void (*orig)(const void *, const void *) =
-    (void (*)(const void *, const void *))g_tramp_connless;
+static void Detour_Connless(oob_from_t from, const void *msg) {
+  void (*orig)(oob_from_t, const void *) =
+    (void (*)(oob_from_t, const void *))g_tramp_connless;
   int now;
-  if (from && OOB_ShouldDrop(from)) {
+  if (OOB_ShouldDrop(&from)) {
     oob_dropped++;
     now = OOB_NowMs();
     if (oob_lastMsg + 5000 < now) {
