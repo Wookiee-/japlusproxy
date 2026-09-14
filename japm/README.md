@@ -65,14 +65,16 @@ Foreground mode for debugging: `JAPM_FG=1 japm my_server start`.
   `engine`, `fs_game` (default `japlus`).
 - `proxy`: `enabled`, `source` (empty = `../proxy/japlusproxy.so` from the
   repo), `no_hooks`, `verify_timeout`.
-- `plugins`: `automessage` (rotating `svsay`), `vpnmonitor` (needs an
-  iphub `apikey`), `rtvrtm` (`enabled: false` default — see below).
+- `plugins`: `automessage` (rotating `svsay`) for now — the plugin
+  framework (`plugins/base.py`) is there if you want more. The log
+  watcher still tails the game log, so log-driven plugins keep working.
 - `security`: `rcon_password`, `server_password`.
 - `game`: `starting_map`, `gametype` (stock values: 0 FFA, 1 Holocron,
   2 JediMaster, 3 Duel, 4 PowerDuel, 6 Team, 7 Siege, 8 CTF), `maxclients`,
   `timelimit`, `fraglimit`, `duellimit`,
   `message_of_the_day`, plus free-form `cvars` appended to server.cfg.
-- `maps`: `primary` / `secondary` lists (map files for voting plugins).
+- `game.cvars`: any extra `seta` lines appended to server.cfg (applied
+  last, so they override template defaults).
 
 Global defaults live in `japm.conf`.
 
@@ -80,18 +82,9 @@ Global defaults live in `japm.conf`.
 
 Enable under `"plugins"` (`true` = defaults, `{ }` = custom, omit/`false`
 = off). Native plugins get RCON + log events; `plugins/<name>/<name>.py`
-scripts run standalone (currently only rtvrtm ships one).
+scripts run standalone.
 
-- `automessage` — rotating chat lines via `svsay`. Works as-is.
-- `vpnmonitor` — iphub VPN/proxy check on connect, kick/ban. Works as-is
-  once `apikey` is set.
-- `rtv` — rock-the-vote rewritten for basejka: `!rtv` / `!unrtv`,
-  `!nominate <map>`, numbered votes (`!1`-`!5`), nomination limits,
-  recently-played blocking, success/fail cooldowns, optional map extend.
-  Winners switch via `g_gametype` + `map` (per-map overrides in
-  `map_gametypes`). Map pool comes from your instance `maps` lists;
-  gametypes are stock (0 FFA, 1 Holocron, 2 JediMaster, 3 Duel,
-  4 PowerDuel, 6 Team, 7 Siege, 8 CTF).
+- `automessage` — rotating chat lines via `svsay`. Needs no log access.
 
 ## Layout
 
@@ -104,8 +97,6 @@ plugins/base.py         # native plugin base class
 plugins/event_types.py  # chat/kill/connect/map event types
 plugins/manager.py      # native plugin loader + RCON API
 plugins/automessage.py  # rotating messages (native)
-plugins/vpnmonitor/     # iphub VPN check (native)
-plugins/rtv.py          # rock-the-vote for basejka (native)
 pids/                   # runtime PID files (gitignored)
 ```
 

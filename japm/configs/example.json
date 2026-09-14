@@ -20,29 +20,6 @@
         "This server is protected by japlusproxy"
       ],
       "interval": 300
-    },
-    "vpnmonitor": {
-      "apikey": "",
-      "block": [1, 2],
-      "action": 0,
-      "announce": true,
-      "whitelist": ["127.0.0.1"],
-      "blacklist": []
-    },
-    "rtv": {
-      "allow": true,
-      "rate": 60,
-      "min_players": 0,
-      "cooldown_success": 300,
-      "cooldown_fail": 120,
-      "vote_time": 30,
-      "change_immediately": 1,
-      "nominations_per_player": 1,
-      "max_nominations": 5,
-      "recently_played": 1800,
-      "allow_extend": true,
-      "map_gametypes": {
-      }
     }
   },
   "security": {
@@ -66,15 +43,5 @@
     "message_of_the_day": "Welcome!\\nHave fun!",
     "cvars": {
     }
-  },
-  "maps": {
-    "primary": [
-      "mp/ffa1",
-      "mp/ffa2",
-      "mp/ffa3",
-      "mp/ffa4",
-      "mp/ffa5"
-    ],
-    "secondary": []
   }
 }

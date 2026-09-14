@@ -65,35 +65,6 @@ PID_DIR = BASE / "pids"
 # can be pointed at via the instance "proxy.source" setting instead.
 REPO_PROXY_SO = BASE.parent / "proxy" / "japlusproxy.so"
 
-RTVRTM_FIELD_MAP = {
-    "log": "logfile", "mbii folder": "MBII_Folder",
-    "address": "address", "bind": "bindaddr",
-    "password": "rcon_pwd", "flood protection": "flood_protection",
-    "use say only": "use_say_only", "name protection": "name_protection",
-    "default game": "default_game", "clean log": "clean_log",
-    "admin voting": "admin_voting", "admin minimum votes": "admin_minimum_votes",
-    "admin skip voting": "admin_skip_voting",
-    "roundlimit": "roundlimit", "timelimit": "timelimit",
-    "limit voting": "limit_voting", "limit minimum votes": "limit_minimum_votes",
-    "limit extend": "limit_extend", "limit successful wait time": "limit_s_wait_time",
-    "limit failed wait time": "limit_f_wait_time", "limit skip voting": "limit_skip_voting",
-    "limit second turn": "limit_second_turn", "limit change immediately": "limit_change_immediately",
-    "rtv": "rtv", "rtv rate": "rtv_rate", "rtv voting": "rtv_voting",
-    "rtv minimum votes": "rtv_minimum_votes", "rtv extend": "rtv_extend",
-    "rtv successful wait time": "rtv_s_wait_time", "rtv failed wait time": "rtv_f_wait_time",
-    "rtv skip voting": "rtv_skip_voting", "rtv second turn": "rtv_second_turn",
-    "rtv change immediately": "rtv_change_immediately",
-    "automatic maps": "automatic_maps", "maps": "maps", "secondary maps": "secondary_maps",
-    "pick secondary maps": "pick_secondary_maps", "map priority": "map_priority",
-    "nomination type": "nomination_type", "enable recently played maps": "enable_recently_played",
-    "rtm": "rtm", "mode priority": "mode_priority", "rtm rate": "rtm_rate",
-    "rtm voting": "rtm_voting", "rtm minimum votes": "rtm_minimum_votes",
-    "rtm extend": "rtm_extend", "rtm successful wait time": "rtm_s_wait_time",
-    "rtm failed wait time": "rtm_f_wait_time", "rtm skip voting": "rtm_skip_voting",
-    "rtm second turn": "rtm_second_turn", "rtm change immediately": "rtm_change_immediately",
-}
-
-
 def load_global_config():
     """Read japm.conf for global defaults (paths, engine, game)."""
     conf = BASE / "japm.conf"
@@ -132,26 +103,6 @@ def merge_config(instance_cfg):
             cfg[key] = ""
     instance_cfg["server"].update(cfg)
     return instance_cfg
-
-
-RTVRTM_DEFAULTS = {
-    "flood protection": "3", "use say only": "0", "name protection": "1",
-    "default game": "", "clean log": "2 10",
-    "admin voting": "0 2", "admin minimum votes": "10", "admin skip voting": "1",
-    "roundlimit": "0", "timelimit": "0",
-    "limit voting": "0 2", "limit minimum votes": "10", "limit extend": "2",
-    "limit successful wait time": "300", "limit failed wait time": "300",
-    "limit skip voting": "1", "limit second turn": "1", "limit change immediately": "0",
-    "rtv": "1", "rtv rate": "50", "rtv voting": "0 3", "rtv minimum votes": "10",
-    "rtv extend": "2", "rtv successful wait time": "300", "rtv failed wait time": "300",
-    "rtv skip voting": "1", "rtv second turn": "1", "rtv change immediately": "0",
-    "automatic maps": "0", "pick secondary maps": "1", "map priority": "2 0 1",
-    "nomination type": "0", "enable recently played maps": "1800",
-    "rtm": "0", "mode priority": "2 0 2 0 2 1", "rtm rate": "0",
-    "rtm voting": "0 3", "rtm minimum votes": "20", "rtm extend": "2",
-    "rtm successful wait time": "300", "rtm failed wait time": "300",
-    "rtm skip voting": "1", "rtm second turn": "0", "rtm change immediately": "1",
-}
 
 
 def load_config(name):
@@ -518,73 +469,6 @@ def generate_server_cfg(cfg):
     return out
 
 
-def generate_map_files(cfg):
-    out_dir = ja_moddir(cfg)
-    if out_dir is None:
-        print("[ERROR] GameData not set -- cannot write map files")
-        return None
-    out_dir.mkdir(parents=True, exist_ok=True)
-    name = cfg["name"]
-    maps = cfg.get("maps", {})
-    primary = out_dir / ("%s-maps.txt" % name)
-    with open(primary, "w") as f:
-        for m in maps.get("primary", []):
-            f.write("%s\n" % m)
-    secondary = out_dir / ("%s-secondary_maps.txt" % name)
-    with open(secondary, "w") as f:
-        for m in maps.get("secondary", []):
-            f.write("%s\n" % m)
-
-
-def generate_rtvrtm_cfg(cfg):
-    """Legacy standalone vote-plugin config (MBII-coupled keys kept for
-    compat). Only generated when the legacy "rtvrtm" plugin is enabled;
-    prefer the native "rtv" plugin instead.
-    """
-    out_dir = ja_moddir(cfg)
-    if out_dir is None:
-        print("[ERROR] GameData not set -- cannot write rtvrtm.cfg")
-        return None
-    out_dir.mkdir(parents=True, exist_ok=True)
-    rtv_raw = cfg.get("rtvrtm", {})
-    rtv = rtv_raw if isinstance(rtv_raw, dict) else {}
-
-    template_path = CONFIG_DIR / "rtvrtm.template"
-    if template_path.exists():
-        with open(template_path) as f:
-            all_fields = {}
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                if ":" in line:
-                    key, val = line.split(":", 1)
-                    all_fields[key.strip().lower()] = val.strip()
-    else:
-        all_fields = dict(RTVRTM_DEFAULTS)
-
-    all_fields.update({k: v for k, v in rtv.items() if v is not None})
-
-    lines = [
-        "* Generated from %s.json (japm; rtvrtm carried over from vmb2m)\n" % cfg["name"],
-        "* DO NOT EDIT\n",
-    ]
-    lines.append("Log: %s\n" % (out_dir / ("%s-games.log" % cfg["name"])))
-    lines.append("MBII folder: %s\n" % str(out_dir))  # compat key, points at japlus dir
-    lines.append("Address: 127.0.0.1:%s\n" % cfg["server"]["port"])
-    lines.append("Bind: 127.0.0.1\n")
-    lines.append("Password: %s\n" % cfg["security"]["rcon_password"])
-    lines.append("Maps: %s\n" % (out_dir / ("%s-maps.txt" % cfg["name"])))
-    lines.append("Secondary maps: %s\n" % (out_dir / ("%s-secondary_maps.txt" % cfg["name"])))
-    for key in RTVRTM_FIELD_MAP:
-        if key in all_fields:
-            lines.append("%s: %s\n" % (key, all_fields[key]))
-    out = out_dir / ("%s-rtvrtm.cfg" % cfg["name"])
-    with open(out, "w") as f:
-        f.writelines(lines)
-    return out
-
-
 # ---------------------------------------------------------------------------
 # japlusproxy management
 # ---------------------------------------------------------------------------
@@ -929,9 +813,6 @@ def start_standalone_plugins(cfg):
             continue
         print("  [%s] Starting..." % pname)
         cmd = [sys.executable, str(script)]
-        rtvcfg = ja_moddir(cfg) / ("%s-rtvrtm.cfg" % cfg["name"])
-        if pname == "rtvrtm" and rtvcfg.exists():
-            cmd += ["-c", str(rtvcfg)]
         proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         write_pid(cfg["name"], pname, proc.pid)
         print("  [%s] Started (PID %d)" % (pname, proc.pid))
@@ -975,10 +856,6 @@ def _init_plugins(cfg, rcon_client):
         config = settings if isinstance(settings, dict) else {}
         config["_rcon_password"] = cfg["security"]["rcon_password"]
         config["_rcon_port"] = cfg["server"]["port"]
-        if name == "rtv":
-            maps = cfg.get("maps", {})
-            config["_maps"] = list(maps.get("primary", [])) + list(maps.get("secondary", []))
-            config["_gametype"] = cfg.get("game", {}).get("gametype", 0)
         pm.load_from_config({name: config})
 
     return pm
@@ -995,12 +872,6 @@ def cmd_start(name):
     info("[%s] GameData: %s" % (name, gamedata))
     info("[%s] Generating configs..." % name)
     generate_server_cfg(cfg)
-    generate_map_files(cfg)
-    # Legacy MBII-coupled standalone config: only for the carried-over
-    # rtvrtm plugin, which is off by default (use native "rtv" instead).
-    legacy = cfg.get("plugins", {}).get("rtvrtm", False)
-    if (isinstance(legacy, dict) and legacy.get("enabled", True)) or legacy is True:
-        generate_rtvrtm_cfg(cfg)
 
     pid = read_pid(name, "engine")
     if pid and pid != 1 and is_pid_alive(pid):
@@ -1106,9 +977,6 @@ def cmd_start(name):
                     print("  [%s] died, restarting..." % sname)
                     script = BASE / "plugins" / sname / ("%s.py" % sname)
                     cmd = [sys.executable, str(script)]
-                    rtvcfg = ja_moddir(cfg) / ("%s-rtvrtm.cfg" % cfg["name"])
-                    if sname == "rtvrtm" and rtvcfg.exists():
-                        cmd += ["-c", str(rtvcfg)]
                     p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     write_pid(name, sname, p.pid)
                     standalone[sname] = p  # Update tracking so it's not respawned
