@@ -3,6 +3,7 @@
 
 #define _GNU_SOURCE
 #include "patch.h"
+#include "hde32.h"
 #include <dlfcn.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -166,6 +167,39 @@ static int HookArmed(const char *name, void *detour) {
     return 0;
   }
   return 0;
+}
+
+// ---------------------------------------------------------------------------
+// YBE-style hook sizing + planting (HookUtils::GetLen/Attach), adapted:
+// HookLenOk disassembles with hde32 (same vendored copy) and requires the
+// recorded prefix_len to land exactly on an instruction boundary, so no
+// hook can ever split an instruction. HookAuto prefers the 5-byte rel32
+// jmp and falls back to absolute jumps only when the detour is out of
+// rel32 range (engine .text sits ~3.8 GB from our .so — pure rel32, as
+// YBE uses, mathematically cannot reach it). Byte interlocks, anchors,
+// trampolines and read-back verification stay as ours.
+// ---------------------------------------------------------------------------
+static int HookLenOk(const void *addr, size_t want) {
+  size_t n = 0;
+  struct hde32s hs;
+  if (!addr || !want || want > 64) return 0;
+  while (n < want) {
+    unsigned l = hde32_disasm((const unsigned char *)addr + n, &hs);
+    if (!l || (hs.flags & F_ERROR)) return 0;
+    n += l;
+  }
+  return n == want;
+}
+
+static int HookAuto(void *target, void *detour, size_t len, void **out_tramp) {
+  intptr_t rel;
+  if (!target || !detour || !out_tramp || !len || len > 64) return -1;
+  rel = (unsigned char *)detour - ((unsigned char *)target + 5);
+  if (len >= 5 && rel == (int32_t)rel)
+    return HookJumpN(target, detour, len, out_tramp);
+  if (len >= 6)
+    return HookJumpAbs(target, detour, len, out_tramp);
+  return -1;
 }
 
 // ---------------------------------------------------------------------------
@@ -483,9 +517,14 @@ void InstallPatches(void *real_handle) {
   {
     const japlus_target_t *t = FindTarget("BG_SiegeFindClassByName");
     void *addr = t ? ResolveTarget(base, t) : NULL;
+    if (addr && !HookLenOk(addr, t->prefix_len)) {
+      fprintf(stderr, "[japlus_proxy] target %s@%p length mismatch — hook skipped\n",
+        t->name, addr);
+      addr = NULL;
+    }
     if (addr) TrackHook(t->name, addr, t->prefix_len);
-    if (addr && HookJumpN(addr, (void*)Detour_SiegeFind,
-                          t->prefix_len, &g_tramp_siegeFind) == 0 &&
+    if (addr && HookAuto(addr, (void*)Detour_SiegeFind,
+                         t->prefix_len, &g_tramp_siegeFind) == 0 &&
         HookArmed(t->name, (void*)Detour_SiegeFind))
       fprintf(stderr, "[japlus_proxy] hooked %s@%p tramp=%p\n",
         t->name, addr, g_tramp_siegeFind);
@@ -499,9 +538,14 @@ void InstallPatches(void *real_handle) {
     void *addr = ResolveEngineConnless();
     fprintf(stderr, "[japlus_proxy] target %-22s %s\n",
       "SV_ConnectionlessPacket", addr ? "verified" : "SKIPPED");
+    if (addr && !HookLenOk(addr, ENGINE_CONNLESS_PREFIX)) {
+      fprintf(stderr, "[japlus_proxy] target SV_ConnectionlessPacket@%p length mismatch — hook skipped\n",
+        addr);
+      addr = NULL;
+    }
     if (addr) TrackHook("SV_ConnectionlessPacket", addr, ENGINE_CONNLESS_PREFIX);
-    if (addr && HookJumpAbs(addr, (void*)Detour_Connless,
-                            ENGINE_CONNLESS_PREFIX, &g_tramp_connless) == 0 &&
+    if (addr && HookAuto(addr, (void*)Detour_Connless,
+                         ENGINE_CONNLESS_PREFIX, &g_tramp_connless) == 0 &&
         HookArmed("SV_ConnectionlessPacket", (void*)Detour_Connless))
       fprintf(stderr, "[japlus_proxy] hooked SV_ConnectionlessPacket@%p tramp=%p\n",
         addr, g_tramp_connless);
@@ -513,9 +557,14 @@ void InstallPatches(void *real_handle) {
     void *addr = ResolveEngineDonedl();
     fprintf(stderr, "[japlus_proxy] target %-22s %s\n",
       "SV_DoneDownload_f", addr ? "verified" : "SKIPPED");
+    if (addr && !HookLenOk(addr, ENGINE_DONEDL_PREFIX)) {
+      fprintf(stderr, "[japlus_proxy] target SV_DoneDownload_f@%p length mismatch — hook skipped\n",
+        addr);
+      addr = NULL;
+    }
     if (addr) TrackHook("SV_DoneDownload_f", addr, ENGINE_DONEDL_PREFIX);
-    if (addr && HookJumpAbs(addr, (void*)Detour_DoneDownload,
-                            ENGINE_DONEDL_PREFIX, &g_tramp_donedl) == 0 &&
+    if (addr && HookAuto(addr, (void*)Detour_DoneDownload,
+                         ENGINE_DONEDL_PREFIX, &g_tramp_donedl) == 0 &&
         HookArmed("SV_DoneDownload_f", (void*)Detour_DoneDownload))
       fprintf(stderr, "[japlus_proxy] hooked SV_DoneDownload_f@%p tramp=%p\n",
         addr, g_tramp_donedl);

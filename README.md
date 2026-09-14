@@ -196,9 +196,12 @@ Now triaged (all 32-bit x86, GCC 2.95.3 era, original stock build):
 
 ### Safety rules
 
-- Patches only plant when recorded first bytes match; hook lengths must end
-  on an instruction boundary (verify with objdump — a blind 5-byte hook can
-  split an instruction and crash).
+- Patches only plant when recorded first bytes match; hook lengths are
+  additionally cross-checked at runtime with a vendored x86 length
+  disassembler (`proxy/hde32.*`, HDE32 by Patkov via JKA_YBEProxy) — a
+  length that would split an instruction fails closed with
+  `length mismatch`. Rel32 jumps are preferred; absolute jumps cover far
+  targets outside the 2 GB rel32 range.
 - Filters fail closed (drop + log); player-data sanitizing rewrites only
   dirty keys so legit names/models/sabers pass through untouched.
 - This project links no OpenJK/YBEProxy code; they are reference only.

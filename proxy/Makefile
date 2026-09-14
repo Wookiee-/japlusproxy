@@ -16,11 +16,11 @@ CFLAGS  ?= -m32 -fPIC -O2 -Wall -Wextra
 LDFLAGS ?= -m32 -shared
 LDLIBS  ?= -ldl
 OUT = japlusproxy.so
-SRC = proxy.c patch.c
+SRC = proxy.c patch.c hde32.c
 
 all: $(OUT)
 
-$(OUT): $(SRC) patch.h
+$(OUT): $(SRC) patch.h hde32.h table32.h
 	$(CC) $(CFLAGS) -o $@ $(SRC) $(LDFLAGS) $(LDLIBS)
 
 cmake-build:

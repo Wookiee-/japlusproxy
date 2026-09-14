@@ -7,7 +7,7 @@
 cmake_minimum_required(VERSION 3.13)
 project(japlusproxy C)
 
-add_library(japlusproxy SHARED proxy.c patch.c)
+add_library(japlusproxy SHARED proxy.c patch.c hde32.c)
 set_target_properties(japlusproxy PROPERTIES
   PREFIX ""
   OUTPUT_NAME "japlusproxy"
