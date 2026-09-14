@@ -385,28 +385,80 @@ static void Detour_Connless(oob_from_t from, const void *msg) {
   orig(from, msg);
 }
 
-static void *ResolveEngineConnless(void) {
-  unsigned char *addr =
-    (unsigned char *)(uintptr_t)(ENGINE_BASE + ENGINE_CONNLESS_OFF);
-  static const unsigned char expect[6] =
-    {0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x20};
+static void *ResolveEngineAbs(const char *name, uintptr_t off,
+                              const unsigned char *expect, size_t elen,
+                              uint32_t anchor, unsigned scan) {
+  unsigned char *addr = (unsigned char *)(uintptr_t)(ENGINE_BASE + off);
   unsigned i;
-  if (memcmp(addr, expect, sizeof(expect)) != 0) {
-    fprintf(stderr, "[japlus_proxy] engine SV_ConnectionlessPacket@%p "
-      "byte mismatch — wrong engine build, hook skipped\n", (void*)addr);
+  if (!expect || !elen || elen > 8 ||
+      memcmp(addr, expect, elen) != 0) {
+    fprintf(stderr, "[japlus_proxy] engine %s@%p "
+      "byte mismatch — wrong engine build, hook skipped\n", name, (void*)addr);
     return NULL;
   }
-  for (i = 0; i + 4 <= ENGINE_CONNLESS_SCAN; i++) {
+  for (i = 0; i + 4 <= scan; i++) {
     uint32_t w;
     memcpy(&w, addr + i, 4);
-    if (w == ENGINE_CONNLESS_STR) break;
+    if (w == anchor) break;
   }
-  if (i + 4 > ENGINE_CONNLESS_SCAN) {
-    fprintf(stderr, "[japlus_proxy] engine SV_ConnectionlessPacket@%p "
-      "anchor not found — hook skipped\n", (void*)addr);
+  if (i + 4 > scan) {
+    fprintf(stderr, "[japlus_proxy] engine %s@%p "
+      "anchor not found — hook skipped\n", name, (void*)addr);
     return NULL;
   }
   return addr;
+}
+
+static void *ResolveEngineConnless(void) {
+  static const unsigned char expect[6] =
+    {0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x20};
+  return ResolveEngineAbs("SV_ConnectionlessPacket", ENGINE_CONNLESS_OFF,
+                          expect, sizeof(expect),
+                          ENGINE_CONNLESS_STR, ENGINE_CONNLESS_SCAN);
+}
+
+// ---------------------------------------------------------------------------
+// SV_DoneDownload_f (engine "donedl" handler) — respawn-cheat guard.
+// Clients spam donedl to force a gamestate/respawn outside game rules.
+// The command is engine-consumed (dispatch table, never crosses vmMain),
+// so only an engine hook can touch it. Detour drops it while downloads
+// are disabled (sv_allowdownload == 0, our default); with downloads on,
+// legit clients need the handshake, so it passes through.
+// Target 0x0804EAA4: prologue 55 8B EC 83 EC 10 (prefix 6, boundary at
+// +6), anchor = clientDownload string DWORD 0x0819B5B8.
+// ---------------------------------------------------------------------------
+
+#define ENGINE_DONEDL_OFF 0x6AA4u
+#define ENGINE_DONEDL_PREFIX 6u
+#define ENGINE_DONEDL_STR 0x0819B5B8u
+#define ENGINE_DONEDL_SCAN 0x100u
+
+static void *g_tramp_donedl;
+static int oob_dl_dropped, oob_dl_lastMsg;
+static void Detour_DoneDownload(const void *cl) {
+  void (*orig)(const void *) =
+    (void (*)(const void *))g_tramp_donedl;
+  int now;
+  if (Proxy_CvarInt("sv_allowdownload") != 0) {
+    orig(cl);
+    return;
+  }
+  oob_dl_dropped++;
+  now = OOB_NowMs();
+  if (oob_dl_lastMsg + 5000 < now) {
+    fprintf(stderr, "[japlus_proxy] donedl dropped %d (downloads disabled)\n",
+      oob_dl_dropped);
+    oob_dl_lastMsg = now;
+    oob_dl_dropped = 0;
+  }
+}
+
+static void *ResolveEngineDonedl(void) {
+  static const unsigned char expect[6] =
+    {0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x10};
+  return ResolveEngineAbs("SV_DoneDownload_f", ENGINE_DONEDL_OFF,
+                          expect, sizeof(expect),
+                          ENGINE_DONEDL_STR, ENGINE_DONEDL_SCAN);
 }
 
 void InstallPatches(void *real_handle) {
@@ -455,5 +507,19 @@ void InstallPatches(void *real_handle) {
         addr, g_tramp_connless);
     else if (addr)
       fprintf(stderr, "[japlus_proxy] OOB hook not armed\n");
+  }
+
+  {
+    void *addr = ResolveEngineDonedl();
+    fprintf(stderr, "[japlus_proxy] target %-22s %s\n",
+      "SV_DoneDownload_f", addr ? "verified" : "SKIPPED");
+    if (addr) TrackHook("SV_DoneDownload_f", addr, ENGINE_DONEDL_PREFIX);
+    if (addr && HookJumpAbs(addr, (void*)Detour_DoneDownload,
+                            ENGINE_DONEDL_PREFIX, &g_tramp_donedl) == 0 &&
+        HookArmed("SV_DoneDownload_f", (void*)Detour_DoneDownload))
+      fprintf(stderr, "[japlus_proxy] hooked SV_DoneDownload_f@%p tramp=%p\n",
+        addr, g_tramp_donedl);
+    else if (addr)
+      fprintf(stderr, "[japlus_proxy] donedl hook not armed\n");
   }
 }

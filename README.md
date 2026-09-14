@@ -30,6 +30,10 @@ program (`linuxjampded`) and the JA+ game logic (`jampgamei386.so`) and:
   / `connect` / `rcon` spam, the classic reflection-flood vector) are
   throttled per-IP and globally with a leaky bucket ported from OpenJK.
   The stock engine has no such limit. Local traffic (127.0.0.1) is exempt.
+- **Kills the `donedl` respawn cheat** — the engine's download-complete
+  handler is neutered while `sv_allowdownload` is 0 (the default), so
+  clients can't force gamestates/respawns through the download handshake.
+  Enable downloads and the handshake passes through untouched.
 
 Legit players notice nothing. Attackers get dropped or logged.
 
